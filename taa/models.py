@@ -502,6 +502,39 @@ class OccurrenceHeadFromSnippets(OccurrenceHeadFromFrames):
         return data_samples
 
 
+@MODELS.register_module()
+class OccurrenceHeadFromSnippetsForNexar(OccurrenceHeadFromSnippets):
+    def loss_by_feat(self, feats, data_samples: SampleList) -> Dict:
+        """Calculate the loss based on the features extracted by the head.
+
+        Args:
+            cls_scores (torch.Tensor): Classification prediction results of
+                all class, has shape (batch_size, num_classes).
+            data_samples (list[:obj:`ActionDataSample`]): The batch
+                data samples.
+
+        Returns:
+            dict: A dictionary of loss components.
+        """
+        _, cls_scores = feats
+
+        labels = []
+        for data_sample in data_samples:
+            if data_sample.have_accident:
+                offsets = data_sample.frame_inds[:: data_sample.clip_len]
+                index = np.ceil((data_sample.accident_frame - offsets) / data_sample.frame_interval).astype(int)
+                label = np.eye(1000)[index, : self.anticipated_len]
+                label = label * (offsets >= data_sample.abnormal_start_frame)[:, None]
+            else:
+                label = np.zeros(self.anticipated_len)
+            labels.append(torch.from_numpy(label))
+        labels = torch.concatenate(labels).flatten().float().to(cls_scores.device)
+
+        loss_cls = self.loss_cls(cls_scores, labels, pos_weight=self.pos_weight)
+
+        return dict(loss_cls=loss_cls)
+
+
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=1000):
         super().__init__()

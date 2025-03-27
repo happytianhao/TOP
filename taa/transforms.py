@@ -282,6 +282,52 @@ class SampleSnippetsBeforeAccident(BaseTransform):
 
 
 @TRANSFORMS.register_module()
+class SampleSnippetsForNexar(SampleSnippetsBeforeAccident):
+    def transform(self, results: dict) -> dict:
+        total_frames = results["total_frames"]
+        assert results["fps"] in [30, 20, 10]
+        frame_interval = results["fps"] // 10
+
+        have_accident = results["have_accident"]
+        accident_ind = results["accident_frame"]
+        start_index = results["start_index"]
+
+        snippet_inds = np.arange(self.snippet_len) * frame_interval
+        snippet_offset_max = total_frames - (self.snippet_len - 1) * frame_interval
+        assert snippet_offset_max > 0
+
+        if self.test_mode:
+            # dense sample from the full video
+            assert self.num_snippets is None
+            snippet_offsets = np.arange(max(snippet_offset_max - 60, 0), snippet_offset_max)
+        else:
+            assert isinstance(self.num_snippets, int)
+            assert self.num_snippets >= 1
+            if have_accident:
+                snippet_offsets = np.random.randint(
+                    0, min(accident_ind + 1, snippet_offset_max), size=self.num_snippets
+                )
+            else:
+                snippet_offsets = np.random.randint(0, snippet_offset_max, size=self.num_snippets)
+
+        if have_accident:
+            snippet_labels = (snippet_offsets + (self.snippet_len - 1) * frame_interval >= accident_ind) & (
+                snippet_offsets + (self.snippet_len - 1) * frame_interval < accident_ind + frame_interval
+            )
+        else:
+            snippet_labels = snippet_offsets < 0
+
+        frame_inds = np.concatenate(snippet_offsets[:, None] + snippet_inds[None, :])
+        frame_inds = np.minimum(frame_inds, total_frames - 1) + start_index
+        results["frame_inds"] = frame_inds.astype(np.int32)
+        results["label"] = snippet_labels
+        results["clip_len"] = self.snippet_len
+        results["frame_interval"] = frame_interval
+        results["num_clips"] = len(snippet_offsets)
+        return results
+
+
+@TRANSFORMS.register_module()
 class VisualizeInputsAsVideos(BaseTransform):
     """Visualize inputs as videos and save them to the specified directory.
 

@@ -9,6 +9,7 @@ from mmaction.utils import ConfigType
 from mmaction.datasets import BaseActionDataset
 
 import pandas as pd
+import numpy as np
 
 from .utils import get_fps
 from .splits import cap_test, dada_test
@@ -309,6 +310,127 @@ class DadaData(BaseActionDataset):
                     measures=line[18],
                     fps=get_fps(video_id, dataset_type="dada"),
                     is_test=video_id in dada_test.keys(),
+                )
+            )
+        return data_list
+
+    def get_data_info(self, idx: int) -> dict:
+        """Get annotation by index."""
+        data_info = super().get_data_info(idx)
+        data_info["filename_tmpl"] = self.filename_tmpl
+        return data_info
+
+
+@DATASETS.register_module()
+class NexarCollisionPrediction(BaseActionDataset):
+    """Rawframe dataset for action recognition.
+
+    The dataset loads raw frames and apply specified transforms to return a
+    dict containing the frame tensors and other information.
+
+    The ann_file is a text file with multiple lines, and each line indicates
+    the directory to frames of a video, total frames of the video and
+    the label of a video.
+
+
+    Args:
+        ann_file (str): Path to the annotation file.
+        pipeline (List[Union[dict, ConfigDict, Callable]]): A sequence of
+            data transforms.
+        data_prefix (dict or ConfigDict): Path to a directory where video
+            frames are held. Defaults to ``dict(img='')``.
+        filename_tmpl (str): Template for each filename.
+            Defaults to ``img_{:05}.jpg``.
+        multi_class (bool): Determines whether it is a multi-class
+            recognition dataset. Defaults to False.
+        num_classes (int, optional): Number of classes in the dataset.
+            Defaults to None.
+        start_index (int): Specify a start index for frames in consideration of
+            different filename format. However, when taking frames as input,
+            it should be set to 1, since raw frames count from 1.
+            Defaults to 1.
+        modality (str): Modality of data. Support ``RGB``, ``Flow``.
+            Defaults to ``RGB``.
+        test_mode (bool): Store True when building test or validation dataset.
+            Defaults to False.
+    """
+
+    def __init__(
+        self,
+        ann_file: str,
+        pipeline: List[Union[ConfigType, Callable]],
+        data_prefix: ConfigType = dict(img=""),
+        filename_tmpl: str = "img_{:05}.jpg",
+        multi_class: bool = False,
+        num_classes: Optional[int] = None,
+        start_index: int = 0,
+        modality: str = "RGB",
+        test_mode: bool = False,
+        val_train: bool = False,
+        **kwargs,
+    ) -> None:
+        self.filename_tmpl = filename_tmpl
+        self.val_train = val_train
+        super().__init__(
+            ann_file,
+            pipeline=pipeline,
+            data_prefix=data_prefix,
+            test_mode=test_mode,
+            multi_class=multi_class,
+            num_classes=num_classes,
+            start_index=start_index,
+            modality=modality,
+            **kwargs,
+        )
+
+    def load_data_list(self) -> List[dict]:
+        """Load annotation file to get video information."""
+        exists(self.ann_file)
+        data_list = []
+        fin = pd.read_csv(self.ann_file).values.tolist()
+        for line in fin:
+            video_id = str(int(line[0])).zfill(5)
+            is_test = bool(line[1])
+            target = bool(line[5]) if not is_test else False
+            fps = 30
+            if not is_test:
+                frame_dir = "train_raw_frames"
+            else:
+                frame_dir = "test_raw_frames"
+            frame_dir = osp.join(self.data_prefix["img"], frame_dir, video_id)
+
+            # keep the train videos
+            if not self.test_mode and is_test:
+                continue
+
+            # keep the test videos
+            if self.test_mode and not self.val_train and not line[1]:
+                continue
+
+            data_list.append(
+                dict(
+                    frame_dir=frame_dir,
+                    video_id=video_id,
+                    weather=0,
+                    light=0,
+                    scenes=0,
+                    linear=0,
+                    type=0,
+                    have_accident=target,
+                    abnormal_start_frame=int(np.ceil(line[4] * fps)) if target else None,
+                    abnormal_end_frame=0,
+                    accident_frame=int(np.ceil(line[3] * fps)) if target else None,
+                    total_frames=int(line[2]),
+                    start2tai=0,
+                    tai2tco=0,
+                    tai2tae=0,
+                    tco2tae=0,
+                    tae2end=0,
+                    texts="",
+                    causes="",
+                    measures="",
+                    fps=fps,
+                    is_test=is_test,
                 )
             )
         return data_list
