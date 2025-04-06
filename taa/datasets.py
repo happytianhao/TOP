@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 
 from .utils import get_fps
-from .splits import cap_test, dada_test
+from .splits import cap_test, dada_test, nexar_val
 
 
 @DATASETS.register_module()
@@ -366,11 +366,11 @@ class NexarCollisionPrediction(BaseActionDataset):
         start_index: int = 0,
         modality: str = "RGB",
         test_mode: bool = False,
-        val_train: bool = False,
+        train_with_val: bool = True,
         **kwargs,
     ) -> None:
         self.filename_tmpl = filename_tmpl
-        self.val_train = val_train
+        self.train_with_val = train_with_val
         super().__init__(
             ann_file,
             pipeline=pipeline,
@@ -391,7 +391,7 @@ class NexarCollisionPrediction(BaseActionDataset):
         for line in fin:
             video_id = str(int(line[0])).zfill(5)
             is_test = bool(line[1])
-            target = bool(line[5]) if not is_test else False
+            target = bool(line[5]) if not np.isnan(line[5]) else None
             fps = 30
             if not is_test:
                 frame_dir = "train_raw_frames"
@@ -403,33 +403,23 @@ class NexarCollisionPrediction(BaseActionDataset):
             if not self.test_mode and is_test:
                 continue
 
+            if not self.test_mode and not self.train_with_val and video_id in nexar_val:
+                continue
+
             # keep the test videos
-            if self.test_mode and not self.val_train and not line[1]:
+            if self.test_mode and video_id not in nexar_val and not is_test:
                 continue
 
             data_list.append(
                 dict(
                     frame_dir=frame_dir,
                     video_id=video_id,
-                    weather=0,
-                    light=0,
-                    scenes=0,
-                    linear=0,
-                    type=0,
-                    have_accident=target,
-                    abnormal_start_frame=int(np.ceil(line[4] * fps)) if target else None,
-                    abnormal_end_frame=0,
-                    accident_frame=int(np.ceil(line[3] * fps)) if target else None,
+                    target=target,
+                    abnormal_start_frame=int(np.ceil(line[4] * fps)) if not is_test and target else None,
+                    accident_frame=int(np.ceil(line[3] * fps)) if not is_test and target else None,
                     total_frames=int(line[2]),
-                    start2tai=0,
-                    tai2tco=0,
-                    tai2tae=0,
-                    tco2tae=0,
-                    tae2end=0,
-                    texts="",
-                    causes="",
-                    measures="",
                     fps=fps,
+                    is_val=video_id in nexar_val,
                     is_test=is_test,
                 )
             )

@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import os
 import copy
 from collections import OrderedDict
 from itertools import product
@@ -6,6 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import mmengine
 import numpy as np
+import pandas as pd
 import torch
 from mmengine.evaluator import BaseMetric
 
@@ -18,8 +20,8 @@ from mmaction.evaluation import (
 )
 from mmaction.registry import METRICS
 
-from sklearn.metrics import accuracy_score, precision_score, recall_score
-from .utils import visualize_pred_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, average_precision_score
+from .utils import visualize_pred_score, visualize_pred_score_nexar
 
 
 def to_tensor(value):
@@ -243,4 +245,102 @@ class AnticipationMetric(DetectionMetric):
         eval_results[f"\n{sep}num_samples"] = len(labels)
         for index, t in enumerate(thresholds):
             eval_results[f"threshold{sep}b_{index}"] = t
+        return eval_results
+
+
+@METRICS.register_module()
+class NexarMetric(BaseMetric):
+
+    default_prefix: Optional[str] = ""
+
+    def __init__(
+        self,
+        vis_list=[],
+        output_dir=None,
+        collect_device: str = "cpu",
+        prefix: Optional[str] = None,
+    ) -> None:
+        super().__init__(collect_device=collect_device, prefix=prefix)
+
+        self.vis_list = vis_list
+        self.output_dir = output_dir
+        self.epoch = None
+
+    def process(self, data_batch: Sequence[Tuple[Any, Dict]], data_samples: Sequence[Dict]) -> None:
+        """Process one batch of data samples and data_samples. The processed
+        results should be stored in ``self.results``, which will be used to
+        compute the metrics when all batches have been processed.
+
+        Args:
+            data_batch (Sequence[dict]): A batch of data from the dataloader.
+            data_samples (Sequence[dict]): A batch of outputs from the model.
+        """
+        data_samples = copy.deepcopy(data_samples)
+        for data_sample in data_samples:
+            result = dict()
+            result["pred"] = data_sample["pred_score"].cpu().numpy()
+            result["label"] = data_sample["gt_label"].cpu().numpy()
+            result["frame_dir"] = data_sample["frame_dir"]
+            result["filename_tmpl"] = data_sample["filename_tmpl"]
+            result["frame_inds"] = data_sample["frame_inds"]
+            result["video_id"] = data_sample["video_id"]
+            result["is_val"] = data_sample["is_val"]
+            result["is_test"] = data_sample["is_test"]
+            result["target"] = data_sample["target"]
+            self.results.append(result)
+
+    def compute_metrics(self, results: List) -> Dict:
+        """Compute the metrics from processed results.
+
+        Args:
+            results (list): The processed results of each batch.
+
+        Returns:
+            dict: The computed metrics. The keys are the names of the metrics,
+            and the values are corresponding results.
+        """
+        eval_results = OrderedDict()
+        os.makedirs("outputs", exist_ok=True)
+        data = {
+            "video_id": [x["video_id"] for x in results if x["is_val"]],
+            "target": [int(x["target"]) for x in results if x["is_val"]],
+            "pred_0.5s": [np.max(x["pred"][-16]) for x in results if x["is_val"]],
+            "pred_1.0s": [np.max(x["pred"][-31]) for x in results if x["is_val"]],
+            "pred_1.5s": [np.max(x["pred"][-46]) for x in results if x["is_val"]],
+        }
+        eval_results["AP_val_0.5s"] = average_precision_score(data["target"], data["pred_0.5s"])
+        eval_results["AP_val_1.0s"] = average_precision_score(data["target"], data["pred_1.0s"])
+        eval_results["AP_val_1.5s"] = average_precision_score(data["target"], data["pred_1.5s"])
+        eval_results["mAP_val"] = (
+            eval_results["AP_val_0.5s"] + eval_results["AP_val_1.0s"] + eval_results["AP_val_1.5s"]
+        ) / 3
+        data["pred_0.5s"] = [f"{p:.4f}" for p in data["pred_0.5s"]]
+        data["pred_1.0s"] = [f"{p:.4f}" for p in data["pred_1.0s"]]
+        data["pred_1.5s"] = [f"{p:.4f}" for p in data["pred_1.5s"]]
+        df = pd.DataFrame(data)
+        df.to_csv(f"outputs/result_val_{self.epoch}.csv", index=False)  # index=False 表示不写入行索引
+
+        data = {
+            "video_id": [x["video_id"] for x in results if x["is_test"] and x["target"] is not None],
+            "target": [int(x["target"]) for x in results if x["is_test"] and x["target"] is not None],
+            "pred": [np.max(x["pred"][-1]) for x in results if x["is_test"] and x["target"] is not None],
+        }
+        data["failure"] = [l == 0 and p >= 0.1 or l == 1 and p < 0.5 for l, p in zip(data["target"], data["pred"])]
+        eval_results["mAP_test"] = average_precision_score(data["target"], data["pred"])
+        data["pred"] = [f"{p:.4f}" for p in data["pred"]]
+        data["failure"] = ["1" if f else "" for f in data["failure"]]
+        df = pd.DataFrame(data)
+        df.to_csv(f"outputs/result_test_{self.epoch}.csv", index=False)  # index=False 表示不写入行索引
+
+        data = {
+            "id": [x["video_id"] for x in results if x["is_test"]],
+            "target": [f'{np.max(x["pred"][-1]):.4f}' for x in results if x["is_test"]],
+        }
+        df = pd.DataFrame(data)
+        df.to_csv(f"outputs/sample_submission_{self.epoch}.csv", index=False)  # index=False 表示不写入行索引
+
+        for result in results:
+            if result["video_id"] in self.vis_list:
+                visualize_pred_score_nexar(result, self.output_dir, self.epoch)
+
         return eval_results

@@ -1,4 +1,4 @@
-name=predict_occurrence_snippet
+name=predict_occurrence_snippet_nexar
 
 current_datetime=$(date +"%Y%m%d_%H%M%S")
 mkdir -p codes/$name/$current_datetime

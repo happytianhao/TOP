@@ -182,3 +182,38 @@ class AnticipationMetricHook(Hook):
         plt.yticks([i * 0.1 for i in range(0, 11)])
         plt.savefig(osp.join(runner.log_dir, "metrics_detection.png"))
         plt.close()
+
+
+@HOOKS.register_module()
+class NexarMetricHook(Hook):
+    def __init__(self):
+        super().__init__()
+        self.epochs = []
+        self.AP_val_5 = []
+        self.AP_val_10 = []
+        self.AP_val_15 = []
+        self.mAP_val = []
+        self.mAP_test = []
+
+    def after_val_epoch(self, runner, metrics) -> None:
+        self.epochs.append(runner.epoch)
+        self.AP_val_5.append(metrics["AP_val_0.5s"])
+        self.AP_val_10.append(metrics["AP_val_1.0s"])
+        self.AP_val_15.append(metrics["AP_val_1.5s"])
+        self.mAP_val.append(metrics["mAP_val"])
+        self.mAP_test.append(metrics["mAP_test"])
+        plt.figure()
+        plt.plot(self.epochs, self.AP_val_5, label="AP_val_0.5s", marker="o", color="red")
+        plt.plot(self.epochs, self.AP_val_10, label="AP_val_1.0s", marker="o", color="blue")
+        plt.plot(self.epochs, self.AP_val_15, label="AP_val_1.5s", marker="o", color="green")
+        plt.plot(self.epochs, self.mAP_val, label="mAP_val", marker="o", color="yellow")
+        plt.plot(self.epochs, self.mAP_test, label="mAP_test", marker="o", color="purple")
+        plt.title(f"mAP_val@{self.mAP_val.index(max(self.mAP_val))+1}={max(self.mAP_val):.4f}")
+        plt.xlabel("Epochs")
+        plt.legend()
+        plt.xlim(0, max(self.epochs) + 1)
+        plt.ylim(-0.1, 1.1)
+        plt.xticks(range(1, max(self.epochs) + 1, 1))
+        plt.yticks([i * 0.1 for i in range(0, 11)])
+        plt.savefig(osp.join(runner.log_dir, "mAP.png"))
+        plt.close()

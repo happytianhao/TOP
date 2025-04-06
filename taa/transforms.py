@@ -288,7 +288,9 @@ class SampleSnippetsForNexar(SampleSnippetsBeforeAccident):
         assert results["fps"] in [30, 20, 10]
         frame_interval = results["fps"] // 10
 
-        have_accident = results["have_accident"]
+        is_val = results["is_val"]
+        is_test = results["is_test"]
+        target = results["target"]
         accident_ind = results["accident_frame"]
         start_index = results["start_index"]
 
@@ -297,20 +299,30 @@ class SampleSnippetsForNexar(SampleSnippetsBeforeAccident):
         assert snippet_offset_max > 0
 
         if self.test_mode:
-            # dense sample from the full video
-            assert self.num_snippets is None
-            snippet_offsets = np.arange(max(snippet_offset_max - 60, 0), snippet_offset_max)
+            assert isinstance(self.num_snippets, int)
+            assert self.num_snippets >= 1
+            assert self.num_snippets <= snippet_offset_max
+            if is_val:
+                if target:
+                    snippet_offsets = np.arange(
+                        accident_ind + 1 - (self.snippet_len - 1) * frame_interval - self.num_snippets,
+                        accident_ind + 1 - (self.snippet_len - 1) * frame_interval,
+                    )
+                else:
+                    snippet_offsets = np.arange(snippet_offset_max - self.num_snippets, snippet_offset_max)
+            if is_test:
+                snippet_offsets = np.arange(snippet_offset_max - self.num_snippets, snippet_offset_max)
         else:
             assert isinstance(self.num_snippets, int)
             assert self.num_snippets >= 1
-            if have_accident:
+            if target:
                 snippet_offsets = np.random.randint(
                     0, min(accident_ind + 1, snippet_offset_max), size=self.num_snippets
                 )
             else:
                 snippet_offsets = np.random.randint(0, snippet_offset_max, size=self.num_snippets)
 
-        if have_accident:
+        if not is_test and target:
             snippet_labels = (snippet_offsets + (self.snippet_len - 1) * frame_interval >= accident_ind) & (
                 snippet_offsets + (self.snippet_len - 1) * frame_interval < accident_ind + frame_interval
             )

@@ -243,6 +243,116 @@ def visualize_pred_score(result, output_dir, epoch=None, fps=10):
     print(f"Video saved to {video_path}")
 
 
+def visualize_pred_score_nexar(result, output_dir, epoch=None, fps=30):
+    pred = result["pred"]
+    label = result["label"]
+    frame_dir = result["frame_dir"]
+    filename_tmpl = result["filename_tmpl"]
+    frame_inds = result["frame_inds"]
+    video_id = result["video_id"]
+
+    os.makedirs(output_dir, exist_ok=True)
+    # 创建视频保存路径
+    if epoch is not None:
+        if result["target"] is not None:
+            p, l = np.max(result["pred"][-1]), int(result["target"])
+            video_path = os.path.join(output_dir, f"{video_id}_{epoch}_{l}_{p:.2f}.mp4")
+        else:
+            video_path = os.path.join(output_dir, f"{video_id}_{epoch}.mp4")
+    else:
+        video_path = os.path.join(output_dir, f"{video_id}.mp4")
+
+    # 创建 VideoWriter 对象
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # 使用 MP4 编码
+    video_writer = cv2.VideoWriter(video_path, fourcc, fps, (640, 360))  # 使用低分辨率确保传输效率
+
+    for i, frame_ind in enumerate(frame_inds):
+        frame_path = os.path.join(frame_dir, filename_tmpl.format(frame_ind))
+        frame = cv2.imread(frame_path)
+        frame = cv2.resize(frame, (640, 360))
+        # 绘制预测分数
+        if len(pred.shape) == 1:
+            cv2.putText(
+                frame,
+                f"Score: {pred[i]:.2f}  " + "*" * int(pred[i] * 10 // 1),
+                (20, 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.72,
+                (255, 255, 255),
+                2,
+            )
+            cv2.putText(
+                frame,
+                f"Score: {pred[i]:.2f}  " + "*" * int(pred[i] * 10 // 1),
+                (20, 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.72,
+                (0, 0, 255),
+                1,
+            )
+        if len(pred.shape) == 2:
+            cv2.putText(
+                frame,
+                f"Score: {np.max(pred[i]):.2f}  " + "*" * int(np.max(pred[i]) * 10 // 1),
+                (20, 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.72,
+                (255, 255, 255),
+                2,
+            )
+            cv2.putText(
+                frame,
+                f"Score: {np.max(pred[i]):.2f}  " + "*" * int(np.max(pred[i]) * 10 // 1),
+                (20, 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.72,
+                (0, 0, 255),
+                1,
+            )
+            cv2.putText(
+                frame,
+                "Time. Pred  L  Visualization",
+                (20, 52),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (255, 255, 255),
+                2,
+            )
+            cv2.putText(
+                frame,
+                "Time. Pred  L  Visualization",
+                (20, 52),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (0, 0, 255),
+                1,
+            )
+            for j in range(len(pred[i])):
+                l = "?" if i + j * 3 >= len(label) else int(label[i + j * 3])
+                cv2.putText(
+                    frame,
+                    f"{j/10:.1f}s  {pred[i][j]:.2f}  {l}  " + "*" * int(pred[i][j] * 10 // 1),
+                    (20, 64 + 12 * j),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (255, 255, 255),
+                    2,
+                )
+                cv2.putText(
+                    frame,
+                    f"{j/10:.1f}s  {pred[i][j]:.2f}  {l}  " + "*" * int(pred[i][j] * 10 // 1),
+                    (20, 64 + 12 * j),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (0, 0, 255),
+                    1,
+                )
+        video_writer.write(frame)
+
+    video_writer.release()
+    print(f"Video saved to {video_path}")
+
+
 if __name__ == "__main__":
     # 示例用法
     # 假设你的 Tensor 为 N x C x T x H x W

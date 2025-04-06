@@ -520,19 +520,41 @@ class OccurrenceHeadFromSnippetsForNexar(OccurrenceHeadFromSnippets):
 
         labels = []
         for data_sample in data_samples:
-            if data_sample.have_accident:
-                offsets = data_sample.frame_inds[:: data_sample.clip_len]
+            offsets = data_sample.frame_inds[:: data_sample.clip_len]
+            if data_sample.target:
                 index = np.ceil((data_sample.accident_frame - offsets) / data_sample.frame_interval).astype(int)
                 label = np.eye(1000)[index, : self.anticipated_len]
                 label = label * (offsets >= data_sample.abnormal_start_frame)[:, None]
             else:
-                label = np.zeros(self.anticipated_len)
+                label = np.zeros((len(offsets), self.anticipated_len))
             labels.append(torch.from_numpy(label))
         labels = torch.concatenate(labels).flatten().float().to(cls_scores.device)
 
         loss_cls = self.loss_cls(cls_scores, labels, pos_weight=self.pos_weight)
 
         return dict(loss_cls=loss_cls)
+
+    def predict_by_feat(self, feats, data_samples: SampleList) -> SampleList:
+        """Transform a batch of output features extracted from the head into
+        prediction results.
+
+        Args:
+            cls_scores (torch.Tensor): Classification scores, has a shape
+                (B*num_segs, num_classes)
+            data_samples (list[:obj:`ActionDataSample`]): The
+                annotation data of every samples. It usually includes
+                information such as `gt_label`.
+
+        Returns:
+            List[:obj:`ActionDataSample`]: Recognition results wrapped
+                by :obj:`ActionDataSample`.
+        """
+        _, cls_scores = feats
+        cls_scores = cls_scores.reshape(len(data_samples), -1, self.anticipated_len)[:, :, self.observed_len - 1 :]
+        for i, data_sample in enumerate(data_samples):
+            data_sample.set_pred_score(F.sigmoid(cls_scores[i]))
+            data_sample.frame_inds = data_sample.frame_inds.reshape(-1, data_samples[0].clip_len)[:, -1]
+        return data_samples
 
 
 class PositionalEncoding(nn.Module):
