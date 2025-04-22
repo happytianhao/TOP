@@ -12,7 +12,8 @@ from torch import Tensor
 from mmaction.evaluation import top_k_accuracy
 from mmaction.registry import MODELS
 from mmaction.utils import ConfigType, SampleList, get_str_type
-from mmaction.models import BaseHead
+from mmengine.model import BaseModel
+from mmaction.models import BaseRecognizer, BaseHead
 from mmaction.models.heads.base import AvgConsensus
 
 from .models_transformer import TransformerDecoder, TransformerDecoderLayer
@@ -574,3 +575,93 @@ class PositionalEncoding(nn.Module):
 
     def forward(self):
         return self.pe
+
+
+@MODELS.register_module()
+class Recognizer3DFlow(BaseRecognizer):
+    """3D recognizer model framework."""
+
+    def __init__(
+        self, backbone: ConfigType, cls_head=None, neck=None, train_cfg=None, test_cfg=None, data_preprocessor=None
+    ) -> None:
+        if data_preprocessor is None:
+            # This preprocessor will only stack batch data samples.
+            data_preprocessor = dict(type="ActionDataPreprocessor")
+
+        BaseModel.__init__(self, data_preprocessor=data_preprocessor)
+
+        # Record the source of the backbone.
+        self.backbone_from = "mmaction2"
+
+        self.backbone = MODELS.build(backbone)
+        self.backbone_flow = MODELS.build(backbone)
+
+        if neck is not None:
+            self.neck = MODELS.build(neck)
+
+        if cls_head is not None:
+            self.cls_head = MODELS.build(cls_head)
+
+        self.train_cfg = train_cfg
+        self.test_cfg = test_cfg
+
+    def extract_feat(self, inputs: Tensor, stage: str = "neck", data_samples=None, test_mode: bool = False) -> tuple:
+        """Extract features of different stages.
+
+        Args:
+            inputs (torch.Tensor): The input data.
+            stage (str): Which stage to output the feature.
+                Defaults to ``'neck'``.
+            data_samples (list[:obj:`ActionDataSample`], optional): Action data
+                samples, which are only needed in training. Defaults to None.
+            test_mode (bool): Whether in test mode. Defaults to False.
+
+        Returns:
+                torch.Tensor: The extracted features.
+                dict: A dict recording the kwargs for downstream
+                    pipeline. These keys are usually included:
+                    ``loss_aux``.
+        """
+
+        # Record the kwargs required by `loss` and `predict`
+        loss_predict_kwargs = dict()
+
+        num_segs = inputs.shape[1]
+        # [N, num_crops, C, T, H, W] ->
+        # [N * num_crops, C, T, H, W]
+        # `num_crops` is calculated by:
+        #   1) `twice_sample` in `SampleFrames`
+        #   2) `num_sample_positions` in `DenseSampleFrames`
+        #   3) `ThreeCrop/TenCrop` in `test_pipeline`
+        #   4) `num_clips` in `SampleFrames` or its subclass if `clip_len != 1`
+        inputs = inputs.view((-1,) + inputs.shape[2:])
+        W = inputs.shape[-1] // 2
+
+        # Check settings of test
+        if test_mode:
+            x = self.backbone(inputs[:, :, :, :, :W])
+            x_flow = self.backbone_flow(inputs[:, :, :, :, W:])
+            x = x + x_flow.detach()
+            if self.with_neck:
+                x, _ = self.neck(x)
+            return x, loss_predict_kwargs
+        else:
+            x = self.backbone(inputs[:, :, :, :, :W])
+            x_flow = self.backbone_flow(inputs[:, :, :, :, W:])
+            x = x + x_flow.detach()
+            if stage == "backbone":
+                return x, loss_predict_kwargs
+
+            loss_aux = dict()
+            if self.with_neck:
+                x, loss_aux = self.neck(x, data_samples=data_samples)
+
+            # Return features extracted through neck
+            loss_predict_kwargs["loss_aux"] = loss_aux
+            if stage == "neck":
+                return x, loss_predict_kwargs
+
+            # Return raw logits through head.
+            if self.with_cls_head and stage == "head":
+                x = self.cls_head(x, **loss_predict_kwargs)
+                return x, loss_predict_kwargs

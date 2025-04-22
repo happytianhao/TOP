@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Optional
+import cv2
 import numpy as np
 import os.path as osp
 from mmcv.transforms import BaseTransform
@@ -357,3 +358,29 @@ class VisualizeInputsAsVideos(BaseTransform):
         video_id = data_samples.video_id
         visualize_tensor_as_videos(inputs, osp.join(self.output_dir, str(type), video_id))
         return results
+
+
+@TRANSFORMS.register_module()
+class Flow(BaseTransform):
+    def transform(self, results: dict) -> dict:
+        imgs = []
+        for i in range(results["num_clips"]):
+            frames = results["imgs"][i * results["clip_len"] : (i + 1) * results["clip_len"]]
+            flows = calculate_optical_flow(frames)
+            imgs += [np.concatenate([frame, flow], axis=-2) for frame, flow in zip(frames, flows)]
+        results["imgs"] = imgs
+        return results
+
+
+def calculate_optical_flow(frames):
+    """Calculate dense optical flow between consecutive frames"""
+    flows = []
+    prev_gray = cv2.cvtColor(frames[0], cv2.COLOR_RGB2GRAY)
+
+    for frame in frames:
+        gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        flow = cv2.calcOpticalFlowFarneback(prev_gray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        flows.append(np.dstack([flow, np.linalg.norm(flow, axis=2)]))
+        prev_gray = gray
+
+    return flows
