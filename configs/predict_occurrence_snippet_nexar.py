@@ -7,6 +7,8 @@ cap = dict(data_root="data/MM-AU/CAP-DATA", ann_file="cap_text_annotations.xls",
 dada = dict(data_root="data/MM-AU/DADA-DATA", ann_file="dada_text_annotations.xlsx", filename_tmpl="{:04}.png")
 d2city = dict(data_root="data/D_square-City", ann_file="annotations.csv")
 nexar = dict(data_root="data/nexar-collision-prediction", ann_file="annotations.csv", filename_tmpl="{:06}.jpg")
+modality = "fuse"
+assert modality in ["rgb", "flow", "fuse"], f"modality {modality} is not supported"
 vis_list = [
     # "00073",
     # "00080",
@@ -98,26 +100,26 @@ vis_list = [
     # "02736",
     # "02747",
     # "02754",
-    "02755",
-    "02760",
-    "02788",
-    "02801",
-    "02807",
-    "02810",
-    "02815",
-    "02823",
-    "02881",
-    "02914",
-    "00988",
-    "00996",
-    "01022",
-    "01034",
-    "01035",
-    "01040",
-    "01046",
-    "01054",
-    "01058",
-    "01062",
+    # "02755",
+    # "02760",
+    # "02788",
+    # "02801",
+    # "02807",
+    # "02810",
+    # "02815",
+    # "02823",
+    # "02881",
+    # "02914",
+    # "00988",
+    # "00996",
+    # "01022",
+    # "01034",
+    # "01035",
+    # "01040",
+    # "01046",
+    # "01054",
+    # "01058",
+    # "01062",
 ]
 
 algorithm_keys = (
@@ -150,18 +152,17 @@ train_pipeline_video = [
     dict(type="RandomResizedCrop", area_range=(0.6, 1.0), aspect_ratio_range=(4 / 3, 16 / 9)),
     dict(type="Resize", scale=(224, 224), keep_ratio=False),
     dict(type="Flip", flip_ratio=0.5),
-    dict(type="Flow"),
+    dict(type="Flow", modality=modality),
     dict(type="FormatShape", input_format="NCTHW"),
     dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
-    # dict(type="VisualizeInputsAsVideos", output_dir="visualizations/inputs_train"),
 ]
 val_pipeline_video = [
     dict(type="DecordInit", **file_client_args),
     dict(type="SampleSnippetsForNexar", snippet_len=5, num_snippets=60, test_mode=True),
     dict(type="DecordDecode"),
     dict(type="Resize", scale=(224, 224), keep_ratio=False),
-    # dict(type="CenterCrop", crop_size=224),
-    dict(type="Flow"),
+    # dict(type="Flip", flip_ratio=1),
+    dict(type="Flow", modality=modality),
     dict(type="FormatShape", input_format="NCTHW"),
     dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
 ]
@@ -173,17 +174,16 @@ train_pipeline_frame = [
     dict(type="RandomResizedCrop", area_range=(0.6, 1.0), aspect_ratio_range=(4 / 3, 16 / 9)),
     dict(type="Resize", scale=(224, 224), keep_ratio=False),
     dict(type="Flip", flip_ratio=0.5),
-    dict(type="Flow"),
+    dict(type="Flow", modality=modality),
     dict(type="FormatShape", input_format="NCTHW"),
     dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
-    # dict(type="VisualizeInputsAsVideos", output_dir="visualizations/inputs_train"),
 ]
 val_pipeline_frame = [
     dict(type="SampleSnippetsForNexar", snippet_len=5, num_snippets=60, test_mode=True),
     dict(type="RawFrameDecode", **file_client_args),
     dict(type="Resize", scale=(224, 224), keep_ratio=False),
-    # dict(type="CenterCrop", crop_size=224),
-    dict(type="Flow"),
+    # dict(type="Flip", flip_ratio=1),
+    dict(type="Flow", modality=modality),
     dict(type="FormatShape", input_format="NCTHW"),
     dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
 ]
@@ -239,7 +239,7 @@ default_hooks = dict(
 custom_hooks = [dict(type="EpochHook"), dict(type="NexarMetricHook")]
 
 model = dict(
-    type="Recognizer3DFlow",
+    type="Recognizer3DFuse" if modality == "fuse" else "Recognizer3D",
     backbone=dict(
         type="ResNet3dSlowOnly",
         depth=50,
@@ -267,10 +267,10 @@ model = dict(
     test_cfg=None,
 )
 
-# load_from = "https://download.openmmlab.com/mmaction/v1.0/recognition/slowonly/slowonly_imagenet-pretrained-r50_32xb8-8x8x1-steplr-150e_kinetics710-rgb/slowonly_imagenet-pretrained-r50_32xb8-8x8x1-steplr-150e_kinetics710-rgb_20230612-12ce977c.pth"
-# load_from = "epoch_39_0.0567_0.8063_0.6485.pth"
-# load_from = "epoch_18_0.8342_4dataset.pth"
-# load_from = "epoch_19_0.8337_3dataset.pth"
-load_from = "epoch_3_0.8567_cdd.pth"
-# load_from = "epoch_47_0.7926_cdd_pro.pth"
-# load_from = "epoch_6_0.0251_0.8287_0.6374.pth"
+param_scheduler = [dict(type="MultiStepLR", begin=0, end=50, by_epoch=True, milestones=[10, 20, 30, 40], gamma=0.5)]
+
+# load_from = "rgb_cdd_epoch_3_0.8567_0.9153.pth"
+# load_from = "rgb_n_epoch_50_0.9438_0.9163_0.883.pth"
+# load_from = "flow_cdd_epoch_37_0.8026_0.8923.pth"
+# load_from = "flow_n_epoch_41_0.9094_0.9175_0.863.pth"
+load_from = "fuse_n_epoch_13_0.9342_0.9298_0.905.pth"

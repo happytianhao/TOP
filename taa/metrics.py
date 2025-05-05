@@ -318,7 +318,7 @@ class NexarMetric(BaseMetric):
         data["pred_1.0s"] = [f"{p:.4f}" for p in data["pred_1.0s"]]
         data["pred_1.5s"] = [f"{p:.4f}" for p in data["pred_1.5s"]]
         df = pd.DataFrame(data)
-        df.to_csv(f"outputs/result_val_{self.epoch}.csv", index=False)  # index=False 表示不写入行索引
+        df.to_csv("outputs/result_val" + f"_{self.epoch}" if self.epoch is not None else "" + ".csv", index=False)
 
         data = {
             "video_id": [x["video_id"] for x in results if x["is_test"] and x["target"] is not None],
@@ -330,14 +330,16 @@ class NexarMetric(BaseMetric):
         data["pred"] = [f"{p:.4f}" for p in data["pred"]]
         data["failure"] = ["1" if f else "" for f in data["failure"]]
         df = pd.DataFrame(data)
-        df.to_csv(f"outputs/result_test_{self.epoch}.csv", index=False)  # index=False 表示不写入行索引
+        df.to_csv("outputs/result_test" + f"_{self.epoch}" if self.epoch is not None else "" + ".csv", index=False)
 
         data = {
             "id": [x["video_id"] for x in results if x["is_test"]],
-            "target": [f'{np.max(x["pred"][-1]):.4f}' for x in results if x["is_test"]],
+            "target": [f'{np.max(x["pred"][-3:], axis=-1).mean():.4f}' for x in results if x["is_test"]],
         }
         df = pd.DataFrame(data)
-        df.to_csv(f"outputs/sample_submission_{self.epoch}.csv", index=False)  # index=False 表示不写入行索引
+        df.to_csv(
+            "outputs/sample_submission" + f"_{self.epoch}" if self.epoch is not None else "" + ".csv", index=False
+        )
 
         for result in results:
             if result["video_id"] in self.vis_list:

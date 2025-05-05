@@ -362,13 +362,21 @@ class VisualizeInputsAsVideos(BaseTransform):
 
 @TRANSFORMS.register_module()
 class Flow(BaseTransform):
+    def __init__(self, modality: str = "rgb") -> None:
+        self.modality = modality
+        assert self.modality in ["rgb", "flow", "fuse"]
+
     def transform(self, results: dict) -> dict:
-        imgs = []
-        for i in range(results["num_clips"]):
-            frames = results["imgs"][i * results["clip_len"] : (i + 1) * results["clip_len"]]
-            flows = calculate_optical_flow(frames)
-            imgs += [np.concatenate([frame, flow], axis=-2) for frame, flow in zip(frames, flows)]
-        results["imgs"] = imgs
+        if self.modality in ["flow", "fuse"]:
+            imgs = []
+            for i in range(results["num_clips"]):
+                frames = results["imgs"][i * results["clip_len"] : (i + 1) * results["clip_len"]]
+                flows = calculate_optical_flow(frames)
+                if self.modality == "flow":
+                    imgs += flows
+                if self.modality == "fuse":
+                    imgs += [np.concatenate([frame, flow], axis=-2) for frame, flow in zip(frames, flows)]
+            results["imgs"] = imgs
         return results
 
 

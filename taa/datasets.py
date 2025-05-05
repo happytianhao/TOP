@@ -672,7 +672,7 @@ class MultiDataset(BaseDataset):
 
     def prepare_data(self, idx):
         data_info = self.get_data_info(idx)
-        if data_info["dataset"] in ["d2city"]:
+        if data_info["dataset"] in ["d2city", "nexar"]:
             return self.pipeline_video(data_info)
         else:
             return self.pipeline_frame(data_info)

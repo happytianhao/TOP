@@ -9,12 +9,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from mmaction.evaluation import top_k_accuracy
 from mmaction.registry import MODELS
-from mmaction.utils import ConfigType, SampleList, get_str_type
+from mmaction.utils import ConfigType, SampleList
 from mmengine.model import BaseModel
 from mmaction.models import BaseRecognizer, BaseHead
-from mmaction.models.heads.base import AvgConsensus
 
 from .models_transformer import TransformerDecoder, TransformerDecoderLayer
 
@@ -578,7 +576,7 @@ class PositionalEncoding(nn.Module):
 
 
 @MODELS.register_module()
-class Recognizer3DFlow(BaseRecognizer):
+class Recognizer3DFuse(BaseRecognizer):
     """3D recognizer model framework."""
 
     def __init__(
@@ -641,14 +639,14 @@ class Recognizer3DFlow(BaseRecognizer):
         if test_mode:
             x = self.backbone(inputs[:, :, :, :, :W])
             x_flow = self.backbone_flow(inputs[:, :, :, :, W:])
-            x = x + x_flow.detach()
+            x = x + x_flow
             if self.with_neck:
                 x, _ = self.neck(x)
             return x, loss_predict_kwargs
         else:
             x = self.backbone(inputs[:, :, :, :, :W])
             x_flow = self.backbone_flow(inputs[:, :, :, :, W:])
-            x = x + x_flow.detach()
+            x = x + x_flow
             if stage == "backbone":
                 return x, loss_predict_kwargs
 
