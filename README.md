@@ -5,69 +5,49 @@
 - [📄 Table of Contents](#-table-of-contents)
 - [🥳 🚀 What's New](#--whats-new-)
 - [📖 Introduction](#-introduction-)
-- [🎁 Major Features](#-major-features-)
 - [🛠️ Installation](#️-installation-)
-- [👀 Model Zoo](#-model-zoo-)
 - [👨‍🏫 Get Started](#-get-started-)
+- [🔋 Training](#-training-)
+- [💡 Testing](#-testing-)
+- [📊 Results](#-results-)
 - [🎫 License](#-license-)
 - [🖊️ Citation](#️-citation-)
 
 ## 🥳 🚀 What's New [🔝](#-table-of-contents)
 
+- We achieve the **1st place** on the public leaderboard with score 0.926!!!
 
 ## 📖 Introduction [🔝](#-table-of-contents)
+We independently trained three models separately:
+- RGB Model: Take RGB frames as inputs.
+- Flow Model: Take flow frames as inputs.
+- Fuse Model: Take both RGB and flow frames as inputs to two different backbones with the same architecture and add their representations together for decoder head.
 
-MMAction2 is an open-source toolbox for video understanding based on PyTorch.
-It is a part of the [OpenMMLab](http://openmmlab.com/) project.
+Each model is pre-trained on MM-AU (CAP-DATA, DADA-DATA) and D^2-City datasets and fine-tuned on the nexar dataset.
 
-<div align="center">
-  <img src="https://github.com/open-mmlab/mmaction2/raw/main/resources/mmaction2_overview.gif" width="380px">
-  <img src="https://user-images.githubusercontent.com/34324155/123989146-2ecae680-d9fb-11eb-916b-b9db5563a9e5.gif" width="380px">
-  <p style="font-size:1.5vw;"> Action Recognition on Kinetics-400 (left) and Skeleton-based Action Recognition on NTU-RGB+D-120 (right)</p>
-</div>
+Moreover, we employed test-time flip augmentation and model ensembling, which improved the score from 0.889 (RGB) to 0.926 on the public leaderboard.
 
-<div align="center">
-  <img src="https://user-images.githubusercontent.com/30782254/155710881-bb26863e-fcb4-458e-b0c4-33cd79f96901.gif" width="580px"/><br>
-    <p style="font-size:1.5vw;">Skeleton-based Spatio-Temporal Action Detection and Action Recognition Results on Kinetics-400</p>
-</div>
-<div align="center">
-  <img src="https://github.com/open-mmlab/mmaction2/raw/main/resources/spatio-temporal-det.gif" width="800px"/><br>
-    <p style="font-size:1.5vw;">Spatio-Temporal Action Detection Results on AVA-2.1</p>
-</div>
+Each model follows an encoder-decoder achitecture. The encoder takes 5 frames as input within a 0.1s interval, then extract the feature with ResNet3dSlowOnly backbone.
+The decoder donot predict the anomaly score directly but predict whether the accident will occur after 0.0s, 0.1s, 0.2s, ..., 2.0s. This will bring a more accurate supervision for the model which could help the model converge more stably. We output the maximum score across all the future timestamps 0.0s, 0.1s, 0.2s, ..., 2.0s to determine whether the accident will occur promptly.
 
-## 🎁 Major Features [🔝](#-table-of-contents)
+See more details of our paper "Accident Anticipation via Temporal Occurrence Prediction" (Not available yet).
 
-- **Modular design**: We decompose a video understanding framework into different components. One can easily construct a customized video understanding framework by combining different modules.
-
-- **Support five major video understanding tasks**: MMAction2 implements various algorithms for multiple video understanding tasks, including action recognition, action localization, spatio-temporal action detection, skeleton-based action detection and video retrieval.
-
-- **Well tested and documented**: We provide detailed documentation and API reference, as well as unit tests.
+During training, we randomly sample 5 frames as input within a 0.1s interval before accident and the label correspond to the time to accident.
+During testing, we sample 3 groups of 5 frames and the last frames of each group are the last, second last, third last frame of the test video, respectively. Then we average the output score of the 3 groups of input.
 
 ## 🛠️ Installation [🔝](#-table-of-contents)
-
-MMAction2 depends on [PyTorch](https://pytorch.org/), [MMCV](https://github.com/open-mmlab/mmcv), [MMEngine](https://github.com/open-mmlab/mmengine), [MMDetection](https://github.com/open-mmlab/mmdetection) (optional) and [MMPose](https://github.com/open-mmlab/mmpose) (optional).
-
-Please refer to [install.md](https://mmaction2.readthedocs.io/en/latest/get_started/installation.html) for detailed instructions.
-
-<details close>
-<summary>Quick instructions</summary>
-
-```shell
-conda create --name openmmlab python=3.8 -y
-conda activate openmmlab
-conda install pytorch torchvision -c pytorch  # This command will automatically install the latest version PyTorch and cudatoolkit, please check whether they match your environment.
+```
+conda create -n top python=3.8.5 -y
+conda activate top
+pip install torch torchvision
 pip install -U openmim
-mim install mmengine
-mim install mmcv
-mim install mmdet  # optional
-mim install mmpose  # optional
-git clone https://github.com/open-mmlab/mmaction2.git
-cd mmaction2
+mim install mmengine==0.10.7
+mim install mmcv==2.2.0
+mim install mmaction2==1.2.0
+git clone https://github.com/happytianhao/TOP.git -b nexar
+cd TOP
 pip install -v -e .
 ```
-
-</details>
-
 
 ## 👨‍🏫 Get Started [🔝](#-table-of-contents)
 You can download all the checkpoints and annotations on [Google Drive](https://drive.google.com/drive/folders/1OyYOKteAsNUcQsb3wqi2_8wwOgXdK7e7?usp=drive_link), and then arrange the folders and files like:
@@ -96,22 +76,42 @@ You can download all the checkpoints and annotations on [Google Drive](https://d
 ```
 
 ## Training [🔝](#-table-of-contents)
+### RGB Model
+To train the rgb model on the nexar dataset with pre-trained model, first modify the line 10 in `configs/predict_occurrence_snippet_nexar.py` from `modality = "fuse"` to `modality = "rgb"`, and then deannotate the line 272 to `load_from = "rgb_cdd_epoch_3_0.8567_0.9153.pth"` and annotate the line 276 to `# load_from = "fuse_n_epoch_13_0.9342_0.9298_0.905.pth"`.
+
+### Flow Model
+To train the flow model on the nexar dataset with pre-trained model, first modify the line 10 in `configs/predict_occurrence_snippet_nexar.py` from `modality = "fuse"` to `modality = "flow"`, and then deannotate the line 274 to `load_from = "flow_cdd_epoch_37_0.8026_0.8923.pth"` and annotate the line 276 to `# load_from = "fuse_n_epoch_13_0.9342_0.9298_0.905.pth"`.
+
+### Fuse Model
+No modification needs.
+
+### Run
+Run the following command for any above model:
+
+Sigle-gpu:
+```bash
+python tools/train.py configs/predict_occurrence_snippet_nexar.py
+```
+Multi-gpu:
+```bash
+./dist_train.sh
+```
 
 ## Testing [🔝](#-table-of-contents)
 ### RGB Model
-To test the pre-trained rgb model, first modify the line 10 in `configs/predict_occurrence_snippet_nexar.py` from `modality = "fuse"` to `modality = "rgb"`, and then run the following command:
+To test the rgb model, first modify the line 10 in `configs/predict_occurrence_snippet_nexar.py` from `modality = "fuse"` to `modality = "rgb"`, and then run the following command:
 ```bash
 python tools/test.py configs/predict_occurrence_snippet_nexar.py ckpts/rgb_n_epoch_50_0.9438_0.9163_0.883.pth
 ```
 
 ### Flow Model
-To test the pre-trained flow model, first modify the line 10 in `configs/predict_occurrence_snippet_nexar.py` from `modality = "fuse"` to `modality = "flow"`, and then run the following command:
+To test the flow model, first modify the line 10 in `configs/predict_occurrence_snippet_nexar.py` from `modality = "fuse"` to `modality = "flow"`, and then run the following command:
 ```bash
 python tools/test.py configs/predict_occurrence_snippet_nexar.py ckpts/flow_n_epoch_41_0.9094_0.9175_0.863.pth
 ```
 
 ### Fuse Model
-To test the pre-trained fuse model, run the following command:
+To test the fuse model, run the following command:
 ```bash
 python tools/test.py configs/predict_occurrence_snippet_nexar.py ckpts/fuse_n_epoch_13_0.9342_0.9298_0.905.pth
 ```
@@ -121,7 +121,7 @@ If you want to apply the flip test time augmentation, you should deannotate the 
 
 You will get the submission file `outputs/sample_submission.csv`.
 
-## Results (Public LB) [🔝](#-table-of-contents)
+## Results [🔝](#-table-of-contents)
 
 |Exp.|Model / Ensemble|Score (Public LB)|
 |---|---|---|
