@@ -628,28 +628,9 @@ class MultiDataset(BaseDataset):
             fin = pd.read_csv(osp.join(self.nexar["data_root"], self.nexar["ann_file"])).values.tolist()
             for line in fin:
                 video_id = str(int(line[0])).zfill(5)
-                is_test = bool(line[1])
-                target = bool(line[5]) if not np.isnan(line[5]) else None
                 fps = 30
-                if not is_test:
-                    filename = "train"
-                    frame_dir = "train_raw_frames"
-                else:
-                    filename = "test"
-                    frame_dir = "test_raw_frames"
-                filename = osp.join(self.nexar["data_root"], filename, video_id + ".mp4")
-                frame_dir = osp.join(self.nexar["data_root"], frame_dir, video_id)
-
-                # keep the train videos
-                if not self.test_mode and is_test:
-                    continue
-
-                if not self.test_mode and not self.train_with_val and video_id in nexar_val:
-                    continue
-
-                # keep the test videos
-                if self.test_mode and video_id not in nexar_val and not is_test:
-                    continue
+                filename = osp.join(self.nexar["data_root"], "test", video_id + ".mp4")
+                frame_dir = osp.join(self.nexar["data_root"], "test_raw_frames", video_id)
 
                 data_list.append(
                     dict(
@@ -659,13 +640,13 @@ class MultiDataset(BaseDataset):
                         filename_tmpl=self.nexar["filename_tmpl"],
                         start_index=0,
                         video_id=video_id,
-                        target=target,
-                        abnormal_start_frame=int(np.ceil(line[4] * fps)) if not is_test and target else None,
-                        accident_frame=int(np.ceil(line[3] * fps)) if not is_test and target else None,
-                        total_frames=int(line[2]),
+                        target=None,
+                        abnormal_start_frame=None,
+                        accident_frame=None,
+                        total_frames=int(line[1]),
                         fps=fps,
-                        is_val=video_id in nexar_val,
-                        is_test=is_test,
+                        is_val=False,
+                        is_test=True,
                     )
                 )
         return data_list
