@@ -7,6 +7,7 @@
 - [📖 Introduction](#-introduction-)
 - [🛠️ Installation](#️-installation-)
 - [👨‍🏫 Get Started](#-get-started-)
+- [🪫 Pretraining](#-pretraining-)
 - [🔋 Training](#-training-)
 - [💡 Testing](#-testing-)
 - [📊 Results](#-results-)
@@ -35,6 +36,16 @@ See more details of our paper "Accident Anticipation via Temporal Occurrence Pre
 During training, we randomly sample 5 frames as input within a 0.1s interval before accident and the label correspond to the time to accident.
 During testing, we sample 3 groups of 5 frames and the last frames of each group are the last, second last, third last frame of the test video, respectively. Then we average the output score of the 3 groups of input.
 
+- Architecture:        x86_64
+- CPU(s):              128
+- Thread(s) per core:  2
+- Core(s) per socket:  32
+- Model name:          Intel(R) Xeon(R) Platinum 8378A CPU @ 3.00GHz
+- GPU:                 NVIDIA A800-SXM4-40GB * 8
+- CUDA Version:        12.4
+- Driver Version:      550.144.03
+- OS Description:      Ubuntu 22.04.5 LTS
+
 ## 🛠️ Installation [🔝](#-table-of-contents)
 ```
 conda create -n top python=3.8.5 -y
@@ -43,14 +54,13 @@ pip install torch torchvision
 pip install -U openmim
 mim install mmengine==0.10.7
 mim install mmcv==2.2.0
-mim install mmaction2==1.2.0
 git clone https://github.com/happytianhao/TOP.git -b nexar
 cd TOP
 pip install -v -e .
 ```
 
 ## 👨‍🏫 Get Started [🔝](#-table-of-contents)
-You can download all the checkpoints and annotations on [Google Drive](https://drive.google.com/drive/folders/1OyYOKteAsNUcQsb3wqi2_8wwOgXdK7e7?usp=drive_link), and then arrange the folders and files like:
+You can download datasets on [nexar-collision-prediction](https://www.kaggle.com/competitions/nexar-collision-prediction/data), [MM-AU](https://github.com/jeffreychou777/LOTVS-MM-AU), [D_square-City](https://opendatalab.com/OpenDataLab/D_square-City) and all the checkpoints and annotations on [Google Drive](https://drive.google.com/drive/folders/1OyYOKteAsNUcQsb3wqi2_8wwOgXdK7e7?usp=drive_link), and then arrange the folders and files like:
 
 ```
 .
@@ -71,8 +81,74 @@ You can download all the checkpoints and annotations on [Google Drive](https://d
 │   │   │   ├── 00002.mp4
 │   │   │   └── ...
 │   │   └── annotations.csv
-│   └── ...
+│   ├── MM-AU
+│   │   ├── CAP-DATA
+│   │   │   ├── 1-10
+│   │   │   │   ├── 1
+│   │   │   │   │   ├── 001537
+│   │   │   │   │   │   └── images
+│   │   │   │   │   │       ├── 000001.jpg
+│   │   │   │   │   │       └── ...
+│   │   │   │   │   └── ...
+│   │   │   │   └── ...
+│   │   │   ├── 11
+│   │   │   ├── 12-42
+│   │   │   ├── 43
+│   │   │   ├── 44-62
+│   │   │   └── cap_text_annotations.xls
+│   │   └── DADA-DATA
+│   │       ├── 1
+│   │       │   ├── 001
+│   │       │   │   └── images
+│   │       │   │       ├── 0001.png
+│   │       │   │       └── ...
+│   │       │   └── ...
+│   │       ├── 2
+│   │       ├── ...
+│   │       └── dada_text_annotations.xlsx
+│   └── D_square-City
+│       ├── raw
+│       │   ├── 0001
+│       │   │   ├── 0b37ad02fe8b7147857325f6ed5eb285.mp4
+│       │   │   └── ...
+│       │   ├── ...
+│       │   ├── 0010
+│       │   ├── 1001
+│       │   ├── 1002
+│       │   └── 1003
+│       ├── sample
+│       │   ├── sample_0000.mp4
+│       │   └── ...
+│       └── annotations.csv
 └── ...
+```
+
+## Pretraining [🔝](#-table-of-contents)
+If you don't want to pretrain, you can directly download the pretrained checkpoints and skip this section.
+
+We pretrained our model on MM-AU(CAP-DATA and DADA-DATA) with positive & negative samples and D^2-City with only negative samples. First, you should annotate or deannotate line 199-202 in `configs/predict_occurrence_snippet_nexar.py` from
+```python
+# cap=cap,
+# dada=dada,
+# d2city=d2city,
+nexar=nexar,
+```
+to 
+```python
+cap=cap,
+dada=dada,
+d2city=d2city,
+# nexar=nexar,
+```
+. Then, annotate the line 276 to `# load_from = "fuse_n_epoch_13_0.9342_0.9298_0.905.pth"`. Next, you can choose the right model you want to train by modifying the line 10 from `modality = "fuse"` to `modality = "rgb"` or `modality = "flow"`. Finally, run the following command:
+
+Sigle-gpu:
+```bash
+python tools/train.py configs/predict_occurrence_snippet_nexar.py
+```
+Multi-gpu:
+```bash
+./dist_train.sh
 ```
 
 ## Training [🔝](#-table-of-contents)
@@ -98,6 +174,7 @@ Multi-gpu:
 ```
 
 ## Testing [🔝](#-table-of-contents)
+See the end-to-end inference pipeline in [Kaggle Notebook](https://www.kaggle.com/code/happytianhao/notebook-top-whu).
 ### RGB Model
 To test the rgb model, first modify the line 10 in `configs/predict_occurrence_snippet_nexar.py` from `modality = "fuse"` to `modality = "rgb"`, and then run the following command:
 ```bash
