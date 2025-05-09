@@ -193,7 +193,6 @@ class NexarMetricHook(Hook):
         self.AP_val_10 = []
         self.AP_val_15 = []
         self.mAP_val = []
-        self.mAP_test = []
 
     def after_val_epoch(self, runner, metrics) -> None:
         self.epochs.append(runner.epoch)
@@ -201,15 +200,13 @@ class NexarMetricHook(Hook):
         self.AP_val_10.append(metrics["AP_val_1.0s"])
         self.AP_val_15.append(metrics["AP_val_1.5s"])
         self.mAP_val.append(metrics["mAP_val"])
-        self.mAP_test.append(metrics["mAP_test"])
         plt.figure()
         plt.plot(self.epochs, self.AP_val_5, label="AP_val_0.5s", marker="o", color="red")
         plt.plot(self.epochs, self.AP_val_10, label="AP_val_1.0s", marker="o", color="blue")
         plt.plot(self.epochs, self.AP_val_15, label="AP_val_1.5s", marker="o", color="green")
         plt.plot(self.epochs, self.mAP_val, label="mAP_val", marker="o", color="orange")
-        plt.plot(self.epochs, self.mAP_test, label="mAP_test", marker="o", color="purple")
-        i_v, i_t = self.mAP_val.index(max(self.mAP_val)), self.mAP_test.index(max(self.mAP_test))
-        plt.title(f"mAP_val@{i_v+1}={self.mAP_val[i_v]:.4f}, mAP_test@{i_t+1}={self.mAP_test[i_t]:.4f}")
+        i_v = self.mAP_val.index(max(self.mAP_val))
+        plt.title(f"mAP_val@{i_v+1}={self.mAP_val[i_v]:.4f}")
         plt.xlabel("Epochs")
         plt.legend()
         plt.xlim(0, max(self.epochs) + 1)

@@ -324,21 +324,6 @@ class NexarMetric(BaseMetric):
             df.to_csv("outputs/result_val.csv", index=False)
 
         data = {
-            "video_id": [x["video_id"] for x in results if x["is_test"] and x["target"] is not None],
-            "target": [int(x["target"]) for x in results if x["is_test"] and x["target"] is not None],
-            "pred": [np.max(x["pred"][-1]) for x in results if x["is_test"] and x["target"] is not None],
-        }
-        data["failure"] = [l == 0 and p >= 0.1 or l == 1 and p < 0.5 for l, p in zip(data["target"], data["pred"])]
-        eval_results["mAP_test"] = average_precision_score(data["target"], data["pred"])
-        data["pred"] = [f"{p:.4f}" for p in data["pred"]]
-        data["failure"] = ["1" if f else "" for f in data["failure"]]
-        df = pd.DataFrame(data)
-        if self.epoch is not None:
-            df.to_csv(f"outputs/result_test_{self.epoch}.csv", index=False)
-        else:
-            df.to_csv("outputs/result_test.csv", index=False)
-
-        data = {
             "id": [x["video_id"] for x in results if x["is_test"]],
             "target": [f'{np.max(x["pred"][-3:], axis=-1).mean():.4f}' for x in results if x["is_test"]],
         }
