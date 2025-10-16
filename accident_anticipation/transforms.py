@@ -1,6 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import os
 import cv2
 import numpy as np
+import pandas as pd
 from mmcv.transforms import BaseTransform
 
 from mmaction.registry import TRANSFORMS
@@ -52,10 +54,10 @@ class SampleFramesBeforeAccident(BaseTransform):
         clip_inds_max = clip_inds[-1]
 
         if self.test_mode:
-            if results["target"] is True:
+            if results["have_accident"] is True:
                 # The last frame of the clip is the accident frame
                 clip_inds += accident_frame - start_index - clip_inds_max
-            elif results["target"] is False:
+            elif results["have_accident"] is False:
                 if accident_frame is None:
                     if total_frames > clip_inds_max:
                         # The first frame of the clip is the first frame of the video
@@ -64,20 +66,20 @@ class SampleFramesBeforeAccident(BaseTransform):
                         # The last frame of the clip is the last frame of the video
                         clip_inds += total_frames - 1 - clip_inds_max
                 else:
-                    if accident_frame - start_index - frame_interval * 30 > clip_inds_max:
+                    # if accident_frame - start_index - frame_interval * 30 > clip_inds_max:
                         # The first frame of the clip is the first frame of the video
-                        clip_inds += 0
-                    else:
+                        # clip_inds += 0
+                    # else:
                         # The last frame of the clip is 3s before the accident frame
                         clip_inds += accident_frame - start_index - frame_interval * 30 - clip_inds_max
-            elif results["target"] is None:
+            elif results["have_accident"] is None:
                 # The last frame of the clip is the last frame of the video
                 clip_inds += total_frames - 1 - clip_inds_max
         else:
-            if results["target"] is True:
+            if results["have_accident"] is True:
                 accident_ind = accident_frame - start_index + np.random.randint(0, frame_interval)
                 clip_inds += min(accident_ind, total_frames - 1) - clip_inds_max
-            elif results["target"] is False:
+            elif results["have_accident"] is False:
                 if accident_frame is None:
                     if total_frames > clip_inds_max:
                         clip_inds += np.random.randint(0, total_frames - clip_inds_max)
@@ -102,10 +104,10 @@ class SampleFramesBeforeAccident(BaseTransform):
 class Flow(BaseTransform):
     def __init__(self, modality: str = "rgb") -> None:
         self.modality = modality
-        assert self.modality in ["rgb", "flow", "both", "two_stream"], f"modality {self.modality} is not supported"
+        assert self.modality in ["rgb", "flow", "both"], f"modality {self.modality} is not supported"
 
     def transform(self, results: dict) -> dict:
-        if self.modality in ["flow", "both"] or self.modality == "two_stream" and results["flow"]:
+        if self.modality in ["flow", "both"]:
             imgs = []
             for i in range(results["num_clips"]):
                 frames = results["imgs"][i * results["clip_len"] : (i + 1) * results["clip_len"]]

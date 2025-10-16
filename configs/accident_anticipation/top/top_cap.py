@@ -1,0 +1,155 @@
+_base_ = ["../../_base_/schedules/sgd_50e.py", "../../_base_/default_runtime.py"]
+
+custom_imports = dict(imports="accident_anticipation")
+
+clip_len = 5
+num_clips = 30
+modality = "rgb"
+assert modality in ["rgb", "flow", "both"], f"modality {modality} is not supported"
+vis_list = []
+
+algorithm_keys = (
+    "dataset",
+    "filename",
+    "frame_dir",
+    "filename_tmpl",
+    "img_shape",
+    "sample_idx",
+    "video_id",
+    "type",
+    "start_index",
+    "total_frames",
+    "have_accident",
+    "abnormal_start_frame",
+    "accident_frame",
+    "frame_inds",
+    "clip_len",
+    "num_clips",
+    "frame_interval",
+    "fps",
+)
+
+file_client_args = dict(io_backend="disk")
+
+train_pipeline_video = [
+    dict(type="DecordInit", **file_client_args),
+    dict(type="SampleFramesBeforeAccident", clip_len=clip_len, num_clips=num_clips, test_mode=False),
+    dict(type="DecordDecode"),
+    dict(type="RandomResizedCrop", area_range=(0.8, 1.0), aspect_ratio_range=(4 / 3, 16 / 9)),
+    dict(type="Resize", scale=(224, 224), keep_ratio=False),
+    dict(type="Flip", flip_ratio=0.5),
+    dict(type="Flow", modality=modality),
+    dict(type="FormatShape", input_format="NCTHW"),
+    dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
+]
+val_pipeline_video = [
+    dict(type="DecordInit", **file_client_args),
+    dict(type="SampleFramesBeforeAccident", clip_len=clip_len, num_clips=num_clips, test_mode=True),
+    dict(type="DecordDecode"),
+    dict(type="Resize", scale=(224, 224), keep_ratio=False),
+    dict(type="Flow", modality=modality),
+    dict(type="FormatShape", input_format="NCTHW"),
+    dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
+]
+test_pipeline_video = val_pipeline_video
+
+train_pipeline_frame = [
+    dict(type="SampleFramesBeforeAccident", clip_len=clip_len, num_clips=num_clips, test_mode=False),
+    dict(type="RawFrameDecode", **file_client_args),
+    dict(type="RandomResizedCrop", area_range=(0.8, 1.0), aspect_ratio_range=(4 / 3, 16 / 9)),
+    dict(type="Resize", scale=(224, 224), keep_ratio=False),
+    dict(type="Flip", flip_ratio=0.5),
+    dict(type="Flow", modality=modality),
+    dict(type="FormatShape", input_format="NCTHW"),
+    dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
+]
+val_pipeline_frame = [
+    dict(type="SampleFramesBeforeAccident", clip_len=clip_len, num_clips=num_clips, test_mode=True),
+    dict(type="RawFrameDecode", **file_client_args),
+    dict(type="Resize", scale=(224, 224), keep_ratio=False),
+    dict(type="Flow", modality=modality),
+    dict(type="FormatShape", input_format="NCTHW"),
+    dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
+]
+test_pipeline_frame = val_pipeline_frame
+
+train_dataloader = dict(
+    batch_size=2,
+    num_workers=8,
+    persistent_workers=True,
+    sampler=dict(type="DefaultSampler", shuffle=True),
+    dataset=dict(
+        type="CAPDataset",
+        data_root="data/MM-AU/CAP-DATA",
+        ann_file="cap_train_annotations.csv",
+        filename_tmpl="{:06}.jpg",
+        start_index=1,
+        pipeline=train_pipeline_frame,
+        test_mode=False,
+        # indices=list(range(20)),
+    ),
+)
+val_dataloader = dict(
+    batch_size=2,
+    num_workers=8,
+    persistent_workers=True,
+    sampler=dict(type="DefaultSampler", shuffle=False),
+    dataset=dict(
+        type="CAPDataset",
+        data_root="data/MM-AU/CAP-DATA",
+        ann_file="cap_val_annotations.csv",
+        filename_tmpl="{:06}.jpg",
+        start_index=1,
+        pipeline=val_pipeline_frame,
+        test_mode=True,
+        # indices=list(range(20)),
+    ),
+)
+test_dataloader = val_dataloader
+
+val_evaluator = dict(
+    type="UnifiedMetric",
+    data_root="data/MM-AU/CAP-DATA",
+    ref_file="cap_val_references_filtered.csv",
+    with_bbox=False,
+    fps=10.0,
+)
+test_evaluator = val_evaluator
+
+train_cfg = dict(type="EpochBasedTrainLoop", max_epochs=50, val_begin=1, val_interval=1)
+
+# 每轮都保存权重，并且只保留最新的权重
+default_hooks = dict(checkpoint=dict(type="CheckpointHook", interval=1, max_keep_ckpts=50, save_best="mAUC", rule="greater"))
+custom_hooks = [dict(type="EpochHook"), dict(type="UnifiedMetricHook")]
+
+model = dict(
+    type="Recognizer3DTwoStream" if modality == "both" else "Recognizer3D",
+    backbone=dict(
+        type="ResNet3dSlowOnly",
+        depth=50,
+        pretrained="https://download.pytorch.org/models/resnet50-11ad3fa6.pth",
+        lateral=False,
+        conv1_kernel=(1, 7, 7),
+        conv1_stride_t=1,
+        pool1_stride_t=1,
+        inflate=(0, 0, 1, 1),
+        norm_eval=False,
+    ),
+    cls_head=dict(
+        type="AnticipationHead",
+        pos_weight=1,
+        clip_len=clip_len,
+        num_clips=num_clips,
+        two_stream=modality == "both",
+        with_rnn=False,
+        with_decoder=False,
+        label_with="annotation",
+    ),
+    data_preprocessor=dict(
+        type="ActionDataPreprocessor", mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], format_shape="NCTHW"
+    ),
+    train_cfg=None,
+    test_cfg=None,
+)
+
+load_from = "https://download.openmmlab.com/mmaction/v1.0/recognition/slowonly/slowonly_imagenet-pretrained-r50_32xb8-8x8x1-steplr-150e_kinetics710-rgb/slowonly_imagenet-pretrained-r50_32xb8-8x8x1-steplr-150e_kinetics710-rgb_20230612-12ce977c.pth"

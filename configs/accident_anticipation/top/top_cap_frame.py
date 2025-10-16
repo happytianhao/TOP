@@ -1,20 +1,16 @@
-_base_ = ["_base_/schedules/sgd_50e.py", "_base_/default_runtime.py"]
+_base_ = ["../../_base_/schedules/sgd_50e.py", "../../_base_/default_runtime.py"]
 
-custom_imports = dict(imports="taa")
+custom_imports = dict(imports="accident_anticipation")
 
-# dataset settings
-cap = dict(data_root="data/MM-AU/CAP-DATA", ann_file="cap_text_annotations.xls", filename_tmpl="{:06}.jpg", start_index=1)
-dada = dict(data_root="data/MM-AU/DADA-DATA", ann_file="dada_text_annotations.xlsx", filename_tmpl="{:04}.png", start_index=1)
-d2city = dict(data_root="data/D_square-City", ann_file="annotations.csv")
-nexar = dict(data_root="data/nexar-collision-prediction", ann_file="annotations.csv", filename_tmpl="{:06}.jpg", start_index=0)
 clip_len = 1
 num_clips = 30
 modality = "rgb"
-assert modality in ["rgb", "flow"], f"modality {modality} is not supported"
+assert modality in ["rgb", "flow", "both"], f"modality {modality} is not supported"
 vis_list = []
 
 algorithm_keys = (
     "dataset",
+    "filename",
     "frame_dir",
     "filename_tmpl",
     "img_shape",
@@ -23,7 +19,7 @@ algorithm_keys = (
     "type",
     "start_index",
     "total_frames",
-    "target",
+    "have_accident",
     "abnormal_start_frame",
     "accident_frame",
     "frame_inds",
@@ -31,8 +27,6 @@ algorithm_keys = (
     "num_clips",
     "frame_interval",
     "fps",
-    "is_val",
-    "is_test",
 )
 
 file_client_args = dict(io_backend="disk")
@@ -85,16 +79,13 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(type="DefaultSampler", shuffle=True),
     dataset=dict(
-        type="MultiDataset",
-        # cap=cap,
-        # dada=dada,
-        # d2city=d2city,
-        nexar=nexar,
-        pipeline_video=train_pipeline_video,
-        pipeline_frame=train_pipeline_frame,
-        modality=modality,
+        type="CAPDataset",
+        data_root="data/MM-AU/CAP-DATA",
+        ann_file="cap_train_annotations.csv",
+        filename_tmpl="{:06}.jpg",
+        start_index=1,
+        pipeline=train_pipeline_frame,
         test_mode=False,
-        train_with_val=False,
         # indices=list(range(20)),
     ),
 )
@@ -104,42 +95,45 @@ val_dataloader = dict(
     persistent_workers=True,
     sampler=dict(type="DefaultSampler", shuffle=False),
     dataset=dict(
-        type="MultiDataset",
-        # cap=cap,
-        # dada=dada,
-        # d2city=d2city,
-        nexar=nexar,
-        pipeline_video=val_pipeline_video,
-        pipeline_frame=val_pipeline_frame,
-        modality=modality,
+        type="CAPDataset",
+        data_root="data/MM-AU/CAP-DATA",
+        ann_file="cap_val_annotations.csv",
+        filename_tmpl="{:06}.jpg",
+        start_index=1,
+        pipeline=val_pipeline_frame,
         test_mode=True,
-        val_train=False,
         # indices=list(range(20)),
     ),
 )
 test_dataloader = val_dataloader
 
-val_evaluator = dict(type="AnticipationMetric", fpr_max=0.1, vis_list=vis_list, output_dir="visualizations")
+val_evaluator = dict(
+    type="UnifiedMetric",
+    data_root="data/MM-AU/CAP-DATA",
+    ref_file="cap_val_references_filtered.csv",
+    with_bbox=False,
+    fps=10.0,
+)
 test_evaluator = val_evaluator
 
 train_cfg = dict(type="EpochBasedTrainLoop", max_epochs=50, val_begin=1, val_interval=1)
 
 # 每轮都保存权重，并且只保留最新的权重
-default_hooks = dict(checkpoint=dict(type="CheckpointHook", interval=1, max_keep_ckpts=50, save_best="mAUC@", rule="greater"))
-custom_hooks = [dict(type="EpochHook"), dict(type="AnticipationMetricHook")]
+default_hooks = dict(checkpoint=dict(type="CheckpointHook", interval=1, max_keep_ckpts=50, save_best="mAUC", rule="greater"))
+custom_hooks = [dict(type="EpochHook"), dict(type="UnifiedMetricHook")]
 
 model = dict(
     type="Recognizer2D",
     backbone=dict(type="ResNet", pretrained="https://download.pytorch.org/models/resnet50-11ad3fa6.pth", depth=50, norm_eval=False),
     cls_head=dict(
         type="AnticipationHead",
-        pos_weight=10,
+        pos_weight=1,
         clip_len=clip_len,
         num_clips=num_clips,
-        two_stream=modality in ["both", "two_stream"],
-        with_rnn=True,
-        with_decoder=True,
-        label_with="annotation",
+        two_stream=modality == "both",
+        with_rnn=False,
+        with_decoder=False,
+        label_with="fix",
     ),
     data_preprocessor=dict(
         type="ActionDataPreprocessor", mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], format_shape="NCHW"

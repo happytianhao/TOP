@@ -1,16 +1,16 @@
-_base_ = ["_base_/schedules/sgd_50e.py", "_base_/default_runtime.py"]
+_base_ = ["../../_base_/schedules/sgd_50e.py", "../../_base_/default_runtime.py"]
 
-custom_imports = dict(imports="taa")
+custom_imports = dict(imports="accident_anticipation")
 
 # dataset settings
 cap = dict(data_root="data/MM-AU/CAP-DATA", ann_file="cap_text_annotations.xls", filename_tmpl="{:06}.jpg", start_index=1)
 dada = dict(data_root="data/MM-AU/DADA-DATA", ann_file="dada_text_annotations.xlsx", filename_tmpl="{:04}.png", start_index=1)
 d2city = dict(data_root="data/D_square-City", ann_file="annotations.csv")
 nexar = dict(data_root="data/nexar-collision-prediction", ann_file="annotations.csv", filename_tmpl="{:06}.jpg", start_index=0)
-clip_len = 1
+clip_len = 5
 num_clips = 30
 modality = "rgb"
-assert modality in ["rgb", "flow"], f"modality {modality} is not supported"
+assert modality in ["rgb", "flow", "both", "two_stream"], f"modality {modality} is not supported"
 vis_list = []
 
 algorithm_keys = (
@@ -45,7 +45,7 @@ train_pipeline_video = [
     dict(type="Resize", scale=(224, 224), keep_ratio=False),
     dict(type="Flip", flip_ratio=0.5),
     dict(type="Flow", modality=modality),
-    dict(type="FormatShape", input_format="NCHW"),
+    dict(type="FormatShape", input_format="NCTHW"),
     dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
 ]
 val_pipeline_video = [
@@ -54,7 +54,7 @@ val_pipeline_video = [
     dict(type="DecordDecode"),
     dict(type="Resize", scale=(224, 224), keep_ratio=False),
     dict(type="Flow", modality=modality),
-    dict(type="FormatShape", input_format="NCHW"),
+    dict(type="FormatShape", input_format="NCTHW"),
     dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
 ]
 test_pipeline_video = val_pipeline_video
@@ -66,7 +66,7 @@ train_pipeline_frame = [
     dict(type="Resize", scale=(224, 224), keep_ratio=False),
     dict(type="Flip", flip_ratio=0.5),
     dict(type="Flow", modality=modality),
-    dict(type="FormatShape", input_format="NCHW"),
+    dict(type="FormatShape", input_format="NCTHW"),
     dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
 ]
 val_pipeline_frame = [
@@ -74,7 +74,7 @@ val_pipeline_frame = [
     dict(type="RawFrameDecode", **file_client_args),
     dict(type="Resize", scale=(224, 224), keep_ratio=False),
     dict(type="Flow", modality=modality),
-    dict(type="FormatShape", input_format="NCHW"),
+    dict(type="FormatShape", input_format="NCTHW"),
     dict(type="PackActionInputs", meta_keys=(), algorithm_keys=algorithm_keys),
 ]
 test_pipeline_frame = val_pipeline_frame
@@ -129,23 +129,33 @@ default_hooks = dict(checkpoint=dict(type="CheckpointHook", interval=1, max_keep
 custom_hooks = [dict(type="EpochHook"), dict(type="AnticipationMetricHook")]
 
 model = dict(
-    type="Recognizer2D",
-    backbone=dict(type="ResNet", pretrained="https://download.pytorch.org/models/resnet50-11ad3fa6.pth", depth=50, norm_eval=False),
+    type="Recognizer3DTwoStream" if modality in ["both", "two_stream"] else "Recognizer3D",
+    backbone=dict(
+        type="ResNet3dSlowOnly",
+        depth=50,
+        pretrained="https://download.pytorch.org/models/resnet50-11ad3fa6.pth",
+        lateral=False,
+        conv1_kernel=(1, 7, 7),
+        conv1_stride_t=1,
+        pool1_stride_t=1,
+        inflate=(0, 0, 1, 1),
+        norm_eval=False,
+    ),
     cls_head=dict(
         type="AnticipationHead",
         pos_weight=1,
         clip_len=clip_len,
         num_clips=num_clips,
         two_stream=modality in ["both", "two_stream"],
-        with_rnn=True,
+        with_rnn=False,
         with_decoder=False,
         label_with="annotation",
     ),
     data_preprocessor=dict(
-        type="ActionDataPreprocessor", mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], format_shape="NCHW"
+        type="ActionDataPreprocessor", mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], format_shape="NCTHW"
     ),
     train_cfg=None,
     test_cfg=None,
 )
 
-load_from = "https://download.openmmlab.com/mmaction/v1.0/recognition/tsn/tsn_imagenet-pretrained-r50_8xb32-1x1x3-100e_kinetics400-rgb/tsn_imagenet-pretrained-r50_8xb32-1x1x3-100e_kinetics400-rgb_20220906-cd10898e.pth"
+load_from = "https://download.openmmlab.com/mmaction/v1.0/recognition/slowonly/slowonly_imagenet-pretrained-r50_32xb8-8x8x1-steplr-150e_kinetics710-rgb/slowonly_imagenet-pretrained-r50_32xb8-8x8x1-steplr-150e_kinetics710-rgb_20230612-12ce977c.pth"

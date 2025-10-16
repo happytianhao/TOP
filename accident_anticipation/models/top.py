@@ -13,7 +13,7 @@ from mmaction.utils import ConfigType, SampleList
 from mmengine.model import BaseModel
 from mmaction.models import BaseRecognizer, BaseHead
 
-from .models_transformer import TransformerDecoder, TransformerDecoderLayer
+from .transformer import TransformerDecoder, TransformerDecoderLayer
 
 
 @MODELS.register_module()
@@ -168,7 +168,7 @@ class AnticipationHead(BaseHead):
             cls_scores = cls_scores.reshape(len(data_samples), -1)
             preds, labels = [], []
             for i, data_sample in enumerate(data_samples):
-                if data_sample.target:
+                if data_sample.have_accident:
                     preds.append(cls_scores[i, :5])
                     preds.append(cls_scores[i, -5:])
                     labels.append(torch.zeros_like(cls_scores[i, :5]))
@@ -188,7 +188,7 @@ class AnticipationHead(BaseHead):
             labels = []
             for data_sample in data_samples:
                 frame_inds = data_sample.frame_inds.reshape(-1, data_sample.clip_len)[:, -1]
-                if data_sample.target:
+                if data_sample.have_accident:
                     if self.with_decoder:
                         index = np.ceil((data_sample.accident_frame - frame_inds) / data_sample.frame_interval)
                         label = np.eye(1000)[index.astype(int), : self.anticipate_len]

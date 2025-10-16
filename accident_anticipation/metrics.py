@@ -11,6 +11,7 @@ from mmaction.registry import METRICS
 
 from sklearn.metrics import average_precision_score
 from .utils import visualize_pred_score
+from .evaluate import build_results, compute_auc_ap, compute_tta
 
 
 @METRICS.register_module()
@@ -216,6 +217,120 @@ class AnticipationMetric(BaseMetric):
         df.to_csv(f"outputs/fpr_tpr_15_{self.epoch}.csv", index=False)
 
         eval_results[f"num_samples{sep}"] = len(preds)
+        return eval_results
+
+
+@METRICS.register_module()
+class UnifiedMetric(BaseMetric):
+    def __init__(self, data_root: str, ref_file: str, with_bbox: bool = False, fps: float = 10.0) -> None:
+        super().__init__()
+
+        self.data_root = data_root
+        self.ref_file = ref_file
+        self.with_bbox = with_bbox
+        self.fps = fps
+        self.epoch = None
+        self.log_dir = None
+
+    def process(self, data_batch: Sequence[Tuple[Any, Dict]], data_samples: Sequence[Dict]) -> None:
+        data_samples = copy.deepcopy(data_samples)
+        for data_sample in data_samples:
+            pred = data_sample["pred_score"].cpu().numpy()
+            if pred.ndim > 1:
+                pred = np.max(pred, axis=-1)
+            frame_inds = data_sample["frame_inds"]
+            video_id = data_sample["video_id"]
+            # 逐帧展开为行
+            rows = []
+            for frame_id, score in zip(frame_inds, pred.tolist()):
+                if self.with_bbox:
+                    # 这里占位：若未来模型输出包含bbox，可在data_sample中读取添加
+                    # 当前无bbox输出，按格式写占位-1
+                    rows.append((video_id, int(frame_id), float(score), -1.0, -1.0, -1.0, -1.0))
+                else:
+                    rows.append((video_id, int(frame_id), float(score)))
+            self.results.append({"rows": rows})
+
+    def compute_metrics(self, results: List) -> Dict:
+        # 写出结果CSV
+        # 结果存到log_dir/results子目录中，并带上epoch后缀
+        base_dir = getattr(self, "log_dir", None) or self.data_root
+        save_dir = os.path.join(base_dir, "results")
+        os.makedirs(save_dir, exist_ok=True)
+        # 由 ref_file 自动派生结果文件名：将 references 替换为 results
+        derived_result_name = self.ref_file.replace("references", "results")
+        if self.epoch is not None:
+            name, ext = os.path.splitext(derived_result_name)
+            result_filename = f"{name}_e{self.epoch}{ext}"
+        else:
+            result_filename = derived_result_name
+        result_csv_path = os.path.join(save_dir, result_filename)
+        ref_csv_path = os.path.join(self.data_root, self.ref_file)
+
+        # 合并所有批次并建立 (video_id, frame_id) -> score 的索引
+        all_rows = []
+        for item in results:
+            all_rows.extend(item.get("rows", []))
+        key_to_score = {}
+        for row in all_rows:
+            key = (row[0], int(row[1]))
+            key_to_score[key] = float(row[2])
+
+        # 读取参考文件，按其顺序筛选并写出结果（严格对齐ref中的(video_id, frame_id)顺序与集合）
+        import csv as _csv
+
+        ref_pairs = []
+        with open(ref_csv_path, "r", encoding="utf-8") as rf:
+            r = _csv.reader(rf)
+            header_ref = next(r, None)
+            if header_ref is None:
+                raise ValueError(f"参考文件为空: {ref_csv_path}")
+            # 参考文件前3列应为: video_id, frame_id, have_accident（有bbox版本则还有4列bbox）
+            for row in r:
+                if not row:
+                    continue
+                if len(row) < 3:
+                    continue
+                vid = row[0]
+                frame_id = int(row[1])
+                have_accident = int(row[2])
+                ref_pairs.append((vid, frame_id, have_accident))
+
+        # 写结果文件：仅包含ref中出现的帧，顺序完全一致
+        if self.with_bbox:
+            header = ["video_id", "frame_id", "have_accident", "score", "cx", "cy", "w", "h"]
+        else:
+            header = ["video_id", "frame_id", "have_accident", "score"]
+
+        with open(result_csv_path, "w", encoding="utf-8", newline="") as f:
+            writer = _csv.writer(f)
+            writer.writerow(header)
+            for vid, frame_id, have_accident in ref_pairs:
+                key = (vid, int(frame_id))
+                if key not in key_to_score:
+                    raise KeyError(f"未找到参考帧对应的预测分数: video_id={vid}, frame_id={frame_id}")
+                score = key_to_score[key]
+                if self.with_bbox:
+                    # 写入: video_id, frame_id, have_accident, score, cx, cy, w, h
+                    writer.writerow([vid, int(frame_id), int(have_accident), float(score), -1.0, -1.0, -1.0, -1.0])
+                else:
+                    # 写入: video_id, frame_id, have_accident, score
+                    writer.writerow([vid, int(frame_id), int(have_accident), float(score)])
+
+        # 调用评估函数
+        results_built = build_results(ref_csv_path, result_csv_path, with_bbox=self.with_bbox)
+        metrics, rocs = compute_auc_ap(results_built, with_bbox=self.with_bbox)
+        ttas, tta_means, far_means = compute_tta(results_built, fps=self.fps, with_bbox=self.with_bbox)
+
+        # 汇总输出（键名简洁）
+        eval_results = OrderedDict()
+        # AUC / AP 系列
+        for k, v in metrics.items():
+            eval_results[k] = v
+        # TTA
+        eval_results["TTA"] = ttas.get("TTA", float("nan"))
+        eval_results["TTA^0.1"] = ttas.get("TTA^0.1", float("nan"))
+
         return eval_results
 
 
