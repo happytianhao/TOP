@@ -13,7 +13,7 @@ from mmaction.utils import ConfigType, SampleList
 from mmengine.model import BaseModel
 from mmaction.models import BaseRecognizer, BaseHead
 
-from .transformer import TransformerDecoder, TransformerDecoderLayer
+from .top_src import TransformerDecoder, TransformerDecoderLayer
 
 
 @MODELS.register_module()

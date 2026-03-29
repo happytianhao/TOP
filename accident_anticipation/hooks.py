@@ -9,7 +9,10 @@ from mmengine.hooks import Hook
 class EpochHook(Hook):
     def before_train_epoch(self, runner) -> None:
         model = runner.model.module if hasattr(runner.model, "module") else runner.model
-        model.cls_head.epoch = runner.epoch
+        if hasattr(model, 'epoch'):
+            model.epoch = runner.epoch
+        if hasattr(model, 'cls_head') and hasattr(model.cls_head, 'epoch'):
+            model.cls_head.epoch = runner.epoch
 
     def before_val_epoch(self, runner) -> None:
         for metric in runner.val_evaluator.metrics:

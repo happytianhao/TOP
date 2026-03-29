@@ -324,7 +324,9 @@ def main() -> None:
     exp_dir = os.path.relpath(os.path.dirname(log_path), start=project_root)
 
     # Pick best epochs
+    best_AUC_epoch, best_AUC_metrics = pick_best_epoch(entries, "AUC")
     best_mAUC_epoch, best_mAUC_metrics = pick_best_epoch(entries, "mAUC")
+    best_AUC01_epoch, best_AUC01_metrics = pick_best_epoch(entries, "AUC^0.1")
     best_mAUC01_epoch, best_mAUC01_metrics = pick_best_epoch(entries, "mAUC^0.1")
     best_TTA01_epoch, best_TTA01_metrics = pick_best_epoch(entries, "TTA^0.1")
 
@@ -337,11 +339,13 @@ def main() -> None:
         row = [str(exp_id), exp_dir, str(epoch)] + values + [comment]
         return header, row
 
-    header_a, row_a = build_row(next_exp_id, exp_dir, best_mAUC_epoch, best_mAUC_metrics, args.comment)
-    header_b, row_b = build_row(next_exp_id, exp_dir, best_mAUC01_epoch, best_mAUC01_metrics, args.comment)
-    header_c, row_c = build_row(next_exp_id, exp_dir, best_TTA01_epoch, best_TTA01_metrics, args.comment)
+    header_a, row_a = build_row(next_exp_id, exp_dir, best_AUC_epoch, best_AUC_metrics, args.comment)
+    header_b, row_b = build_row(next_exp_id, exp_dir, best_mAUC_epoch, best_mAUC_metrics, args.comment)
+    header_c, row_c = build_row(next_exp_id, exp_dir, best_AUC01_epoch, best_AUC01_metrics, args.comment)
+    header_d, row_d = build_row(next_exp_id, exp_dir, best_mAUC01_epoch, best_mAUC01_metrics, args.comment)
+    header_e, row_e = build_row(next_exp_id, exp_dir, best_TTA01_epoch, best_TTA01_metrics, args.comment)
 
-    # Build a superset header that can accommodate all three rows while preserving relative metric order per first occurrence
+    # Build a superset header that can accommodate all five rows while preserving relative metric order per first occurrence
     combined_header: List[str] = []
     def extend_header(h: List[str]):
         for col in h:
@@ -351,6 +355,8 @@ def main() -> None:
     extend_header(header_a)
     extend_header(header_b)
     extend_header(header_c)
+    extend_header(header_d)
+    extend_header(header_e)
 
     # Align rows to the combined header
     def align_row(header: List[str], row: List[str], final_header: List[str]) -> List[str]:
@@ -361,6 +367,8 @@ def main() -> None:
         align_row(header_a, row_a, combined_header),
         align_row(header_b, row_b, combined_header),
         align_row(header_c, row_c, combined_header),
+        align_row(header_d, row_d, combined_header),
+        align_row(header_e, row_e, combined_header),
     ]
 
     ensure_csv_append_rows(records_csv, combined_header, final_rows)
