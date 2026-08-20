@@ -215,13 +215,22 @@ The framework reports the following metrics:
 If you find this work useful, please consider citing:
 
 ```bibtex
-@inproceedings{zhao2024accident,
+@inproceedings{zhao2025accident,
   title={Accident Anticipation via Temporal Occurrence Prediction},
   author={Zhao, Tianhao and Zou, Yiyang and Mao, Zihao and Xiao, Peilun and Huang, Yulin and Yang, Hongda and Li, Yuxuan and Li, Qun and Wu, Guobin and Lin, Yutian},
   booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
-  year={2024}
+  year={2025}
 }
 ```
+
+### Follow-up Work
+
+Check out our follow-up work on collision-anchored risk propagation:
+
+**RiskProp: Collision-Anchored Self-Supervised Risk Propagation for Early Accident Anticipation**  
+*Yiyang Zou, Tianhao Zhao, Peilun Xiao, Hongyu Jin, Longyu Qi, Yuxuan Li, Liyin Liang, Yifeng Qian, Chunbo Lai, Yutian Lin, Zhihui Li, Yu Wu*  
+CVPR 2026 Highlight  
+📄 [Paper](https://arxiv.org/abs/2603.27165)
 
 ## License
 
