@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOP: Temporal Occurrence Prediction for Accident Anticipation</title>
+    <style>
+        :root {
+            --surface-0: #05070C;
+            --surface-1: #0A0D12;
+            --surface-2: #0F131C;
+            --surface-3: #161D2B;
+            --surface-4: #1E2636;
+            --accent: #38BDF8;
+            --accent-muted: #6EE7B7;
+            --text-primary: #E5E7EB;
+            --text-secondary: #9CA3AF;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--surface-0);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: clamp(320px, 90vw, 1200px);
+            margin: 0 auto;
+            padding: clamp(1rem, 5vw, 4rem) clamp(1rem, 3vw, 2rem);
+        }
+
+        header {
+            text-align: center;
+            padding: clamp(2rem, 8vw, 6rem) 0 clamp(2rem, 6vw, 4rem);
+        }
+
+        h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-muted) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: clamp(1rem, 2.5vw, 1.25rem);
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.8;
+        }
+
+        .authors {
+            font-size: clamp(0.9rem, 2vw, 1.1rem);
+            color: var(--text-secondary);
+            margin: 1.5rem 0;
+        }
+
+        .links {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 2rem 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--surface-3);
+            color: var(--text-primary);
+            text-decoration: none;
+            border-radius: 999px;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: 1px solid var(--surface-4);
+        }
+
+        .btn:hover {
+            background: var(--surface-4);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--surface-0);
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            background: #0EA5E9;
+            border-color: #0EA5E9;
+        }
+
+        section {
+            background: var(--surface-2);
+            border-radius: 16px;
+            padding: clamp(1.5rem, 4vw, 3rem);
+            margin: 2rem 0;
+            border: 1px solid var(--surface-3);
+        }
+
+        h2 {
+            font-size: clamp(1.5rem, 3.5vw, 2rem);
+            margin-bottom: 1.5rem;
+            color: var(--accent);
+            letter-spacing: -0.02em;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 12px;
+            background: var(--surface-1);
+            margin: 2rem 0;
+        }
+
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .card {
+            background: var(--surface-3);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--surface-4);
+        }
+
+        .card h3 {
+            color: var(--accent-muted);
+            margin-bottom: 0.75rem;
+            font-size: clamp(1.1rem, 2.5vw, 1.25rem);
+        }
+
+        code {
+            background: var(--surface-1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+            color: var(--accent-muted);
+        }
+
+        pre {
+            background: var(--surface-1);
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            border: 1px solid var(--surface-3);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .metric {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .metric-item {
+            text-align: center;
+            padding: 1rem;
+            background: var(--surface-3);
+            border-radius: 8px;
+        }
+
+        .metric-value {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 3rem 0 2rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .links {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>TOP: Temporal Occurrence Prediction</h1>
+            <p class="subtitle">Accident Anticipation via Temporal Occurrence Prediction</p>
+
+            <div class="authors">
+                Tianhao Zhao, Yiyang Zou, Zihao Mao, Peilun Xiao, Yulin Huang, Hongda Yang, Yuxuan Li, Qun Li, Guobin Wu, Yutian Lin
+            </div>
+
+            <div class="links">
+                <a href="https://arxiv.org/pdf/2510.22260" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    Paper
+                </a>
+                <a href="https://github.com/happytianhao/TOP" class="btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    Code
+                </a>
+                <a href="https://drive.google.com/drive/folders/16Z2VePTQnxFuyQsaKcfJTUtiRCwwg1Eq?usp=drive_link" class="btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Data
+                </a>
+            </div>
+        </header>
+
+        <section>
+            <h2>Abstract</h2>
+            <p>
+                Traffic accident anticipation is a critical task for autonomous driving systems.
+                We propose <strong>Temporal Occurrence Prediction (TOP)</strong>, a novel framework
+                that predicts when accidents will occur through temporal modeling.
+                Our method enables real-time accident anticipation by modeling the temporal occurrence
+                of potential collisions, providing timely alerts to enhance road safety.
+            </p>
+            <p>
+                The key insight is that modeling the temporal dynamics of accident occurrence
+                allows for more accurate and actionable predictions in online scenarios.
+                This leads to more reliable anticipation systems suitable for practical deployment.
+            </p>
+        </section>
+
+        <section>
+            <h2>Method Overview</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>🎯 Temporal Modeling</h3>
+                    <p>We model accident anticipation through temporal occurrence prediction, capturing when accidents are likely to happen.</p>
+                </div>
+                <div class="card">
+                    <h3>⚡ Online Prediction</h3>
+                    <p>Our method performs real-time accident anticipation, suitable for practical deployment in autonomous driving systems.</p>
+                </div>
+                <div class="card">
+                    <h3>🔄 Unified Framework</h3>
+                    <p>The same architecture works across multiple datasets (CAP, DADA, Nexar) with consistent evaluation metrics.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Evaluation Metrics</h2>
+            <p>Our framework introduces comprehensive evaluation metrics for accident anticipation:</p>
+
+            <h3 style="color: var(--text-primary); margin-top: 1.5rem;">Temporal Metrics</h3>
+            <div class="grid">
+                <div class="card">
+                    <h3>📊 mAP (Mean Average Precision)</h3>
+                    <p>Average precision computed at different time windows (0.5s, 1.0s, 1.5s) before the accident. Measures classification accuracy at various anticipation horizons.</p>
+                </div>
+                <div class="card">
+                    <h3>📈 mAUC (Mean Area Under ROC)</h3>
+                    <p>Mean AUC computed at FPR ≤ 10% across time windows. Evaluates true positive rate while maintaining low false alarm rate.</p>
+                </div>
+                <div class="card">
+                    <h3>⏱️ TTA (Time-to-Accident)</h3>
+                    <p>Measures how early the model detects accidents before they occur. Higher TTA indicates earlier and more actionable warnings.</p>
+                </div>
+            </div>
+
+            <h3 style="color: var(--text-primary); margin-top: 2rem;">Metric Computation</h3>
+            <p>We provide a reference implementation of our evaluation metrics. Key metrics include:</p>
+            <ul style="color: var(--text-secondary); margin-left: 2rem; margin-top: 1rem;">
+                <li><strong>AP@t</strong>: Average Precision at time t seconds before accident</li>
+                <li><strong>AUC@t</strong>: Area Under ROC at time t (FPR ≤ 10%)</li>
+                <li><strong>mAP</strong>: Mean of AP@0.5s, AP@1.0s, AP@1.5s</li>
+                <li><strong>mAUC</strong>: Mean of AUC@0.5s, AUC@1.0s, AUC@1.5s</li>
+                <li><strong>TTA</strong>: Average time from first detection to accident occurrence</li>
+            </ul>
+
+            <p style="margin-top: 1rem;">Download the metrics implementation:</p>
+            <div style="margin-top: 1rem;">
+                <a href="metrics_example.py" class="btn" download>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Download metrics_example.py
+                </a>
+            </div>
+        </section>
+
+        <section>
+            <h2>Key Results</h2>
+            <p>Our method achieves state-of-the-art performance on multiple benchmarks:</p>
+
+            <h3 style="color: var(--text-primary); margin-top: 2rem;">CAP Dataset</h3>
+            <div class="metric">
+                <div class="metric-item">
+                    <div class="metric-value">XX.X%</div>
+                    <div class="metric-label">mAP</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">XX.X%</div>
+                    <div class="metric-label">mAUC</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">XX.X%</div>
+                    <div class="metric-label">AP@0.5s</div>
+                </div>
+            </div>
+
+            <h3 style="color: var(--text-primary); margin-top: 2rem;">DADA-2000 Dataset</h3>
+            <div class="metric">
+                <div class="metric-item">
+                    <div class="metric-value">XX.X%</div>
+                    <div class="metric-label">mAP</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">XX.X%</div>
+                    <div class="metric-label">mAUC</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">XX.X%</div>
+                    <div class="metric-label">AP@1.0s</div>
+                </div>
+            </div>
+
+            <h3 style="color: var(--text-primary); margin-top: 2rem;">Nexar Dataset</h3>
+            <div class="metric">
+                <div class="metric-item">
+                    <div class="metric-value">XX.X%</div>
+                    <div class="metric-label">mAP</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">XX.X%</div>
+                    <div class="metric-label">mAUC</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">X.Xs</div>
+                    <div class="metric-label">TTA</div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Quick Start</h2>
+            <p>Get started with TOP in three steps:</p>
+
+            <h3 style="color: var(--text-primary); margin-top: 1.5rem;">1. Install Dependencies</h3>
+            <pre><code>conda create -n top python=3.8.5 -y
+conda activate top
+pip install torch torchvision
+pip install -U openmim
+mim install mmengine==0.10.7
+mim install mmcv==2.2.0</code></pre>
+
+            <h3 style="color: var(--text-primary); margin-top: 1.5rem;">2. Clone and Install</h3>
+            <pre><code>git clone https://github.com/happytianhao/TOP.git
+cd TOP
+pip install -v -e .</code></pre>
+
+            <h3 style="color: var(--text-primary); margin-top: 1.5rem;">3. Train</h3>
+            <pre><code>python tools/train.py configs/accident_anticipation/top/top_cap.py</code></pre>
+        </section>
+
+        <section>
+            <h2>Citation</h2>
+            <p>If you find this work useful, please consider citing:</p>
+            <pre><code>@inproceedings{zhao2024accident,
+  title={Accident Anticipation via Temporal Occurrence Prediction},
+  author={Zhao, Tianhao and Zou, Yiyang and Mao, Zihao and Xiao, Peilun and Huang, Yulin and Yang, Hongda and Li, Yuxuan and Li, Qun and Wu, Guobin and Lin, Yutian},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  year={2024}
+}</code></pre>
+        </section>
+
+        <footer>
+            <p>Built with ❤️ for safer autonomous driving</p>
+            <p>© 2024 | Based on <a href="https://github.com/open-mmlab/mmaction2" style="color: var(--accent);">MMAction2</a></p>
+        </footer>
+    </div>
+</body>
+</html>

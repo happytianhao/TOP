@@ -110,7 +110,7 @@ test_dataloader = val_dataloader
 val_evaluator = dict(
     type="UnifiedMetric",
     data_root="data/MM-AU/CAP-DATA",
-    ref_file="cap_val_references_filtered.csv",
+    ref_file="cap_val_references.csv",
     with_bbox=False,
     fps=10.0,
 )
