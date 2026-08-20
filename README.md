@@ -230,7 +230,16 @@ Check out our follow-up work on collision-anchored risk propagation:
 **RiskProp: Collision-Anchored Self-Supervised Risk Propagation for Early Accident Anticipation**  
 *Yiyang Zou, Tianhao Zhao, Peilun Xiao, Hongyu Jin, Longyu Qi, Yuxuan Li, Liyin Liang, Yifeng Qian, Chunbo Lai, Yutian Lin, Zhihui Li, Yu Wu*  
 CVPR 2026 Highlight  
-📄 [Paper](https://arxiv.org/abs/2603.27165)
+📄 [Paper](https://arxiv.org/pdf/2603.27165)
+
+```bibtex
+@inproceedings{zou2026riskprop,
+  title={RiskProp: Collision-Anchored Self-Supervised Risk Propagation for Early Accident Anticipation},
+  author={Zou, Yiyang and Zhao, Tianhao and Xiao, Peilun and Jin, Hongyu and Qi, Longyu and Li, Yuxuan and Liang, Liyin and Qian, Yifeng and Lai, Chunbo and Lin, Yutian and Li, Zhihui and Wu, Yu},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year={2026}
+}
+```
 
 ## License
 
